@@ -1,12 +1,12 @@
 BUILDDIR = build
 BUILDFLAGS =
 
-APPS = atomic-test nsq-producer nsq-consumer cobra-test zap-test
+APPS = nsq_to_dingding
 all: $(APPS)
 
 $(BUILDDIR)/%:
 	@mkdir -p $(dir $@)
-	go build ${BUILDFLAGS} -o $@ ./apps/$*
+	go build ${BUILDFLAGS} -o $@ ./
 
 $(APPS): %: $(BUILDDIR)/%
 
