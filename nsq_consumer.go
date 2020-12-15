@@ -65,15 +65,15 @@ func (nsqConsumer *NSQConsumer) HandleMessage(m *nsq.Message) error {
 }
 
 func (nsqConsumer *NSQConsumer) router() {
-	closeElastic, exit := false, false
+	closeDingDing, exit := false, false
 	for {
 		select {
 		case <-nsqConsumer.consumer.StopChan:
-			closeElastic, exit = true, true
+			closeDingDing, exit = true, true
 		case <-nsqConsumer.termChan:
 			nsqConsumer.consumer.Stop()
 		case <-nsqConsumer.hupChan:
-			closeElastic = true
+			closeDingDing = true
 		case m := <-nsqConsumer.msgChan:
 			err := nsqConsumer.publisher.handleMessage(m)
 			if err != nil {
@@ -85,9 +85,9 @@ func (nsqConsumer *NSQConsumer) router() {
 			m.Finish()
 		}
 
-		if closeElastic {
+		if closeDingDing {
 			nsqConsumer.Close()
-			closeElastic = false
+			closeDingDing = false
 		}
 
 		if exit {
