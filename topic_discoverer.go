@@ -9,9 +9,6 @@ import (
 	"time"
 )
 
-// TopicDiscovererFunc interface of topic discoverer
-type TopicDiscovererFunc func(topic string) error
-
 // TopicDiscoverer struct of topic discoverer
 type TopicDiscoverer struct {
 	opts        *Options
@@ -41,15 +38,6 @@ func newTopicDiscoverer(opts *Options, cfg *nsq.Config, hupChan chan os.Signal, 
 	}
 
 	return discoverer, nil
-}
-
-func (discoverer *TopicDiscoverer) allowTopicName(pattern, name string) bool {
-	match, err := regexp.MatchString(pattern, name)
-	if err != nil {
-		return false
-	}
-
-	return match
 }
 
 func (discoverer *TopicDiscoverer) isTopicAllowed(topic string) bool {

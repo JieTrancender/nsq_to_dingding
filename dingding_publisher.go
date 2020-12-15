@@ -14,8 +14,8 @@ import (
 // LogDataInfo log data structure
 type LogDataInfo struct {
 	GamePlatform string `json:"gamePlatform"`
-	NodeName     string `json:"nodeName`
-	FileName     string `json:"fileName`
+	NodeName     string `json:"nodeName"`
+	FileName     string `json:"fileName"`
 	Msg          string `json:"message"`
 }
 
@@ -83,12 +83,12 @@ func (publisher *DingDingPublisher) sendDingDingMsg(logData LogDataInfo) {
 
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := publisher.client.Do(req)
-	defer resp.Body.Close()
-
 	if err != nil {
 		fmt.Printf("sendDingDingMsg do fail:%v", err)
 		return
 	}
+
+	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
