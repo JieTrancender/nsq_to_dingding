@@ -14,36 +14,30 @@ type TopicDiscovererFunc func(topic string) error
 
 // TopicDiscoverer struct of topic discoverer
 type TopicDiscoverer struct {
-	opts            *Options
-	topics          map[string]*NSQConsumer
-	termChan        chan os.Signal
-	hupChan         chan os.Signal
-	logger          *log.Logger
-	wg              sync.WaitGroup
-	cfg             *nsq.Config
-	elasticAddrs    []string
-	idxName         string
-	idxType         string
-	elasticUserName string
-	elasticPassword string
-	ddAccessToken   string
+	opts        *Options
+	topics      map[string]*NSQConsumer
+	termChan    chan os.Signal
+	hupChan     chan os.Signal
+	logger      *log.Logger
+	wg          sync.WaitGroup
+	cfg         *nsq.Config
+	protocol    string
+	url         string
+	accessToken string
 }
 
 func newTopicDiscoverer(opts *Options, cfg *nsq.Config, hupChan chan os.Signal, termChan chan os.Signal,
-	elasticAddrs []string, idxName, idxType, elasticUsername, elasticPassword, ddAccessToken string) (*TopicDiscoverer, error) {
+	protocol, url, accessToken string) (*TopicDiscoverer, error) {
 	discoverer := &TopicDiscoverer{
-		opts:            opts,
-		topics:          make(map[string]*NSQConsumer),
-		termChan:        termChan,
-		hupChan:         hupChan,
-		logger:          log.New(os.Stdout, "[topic_discoverer]: ", log.LstdFlags),
-		cfg:             cfg,
-		elasticAddrs:    elasticAddrs,
-		idxName:         idxName,
-		idxType:         idxType,
-		elasticUserName: elasticUsername,
-		elasticPassword: elasticPassword,
-		ddAccessToken:   ddAccessToken,
+		opts:        opts,
+		topics:      make(map[string]*NSQConsumer),
+		termChan:    termChan,
+		hupChan:     hupChan,
+		logger:      log.New(os.Stdout, "[topic_discoverer]: ", log.LstdFlags),
+		cfg:         cfg,
+		protocol:    protocol,
+		url:         url,
+		accessToken: accessToken,
 	}
 
 	return discoverer, nil
@@ -87,8 +81,7 @@ func (discoverer *TopicDiscoverer) updateTopics(topics []string) {
 		}
 
 		nsqConsumer, err := NewNSQConsumer(discoverer.opts, topic, discoverer.cfg,
-			discoverer.elasticAddrs, discoverer.idxName, discoverer.idxType,
-			discoverer.elasticUserName, discoverer.elasticPassword, discoverer.ddAccessToken)
+			discoverer.protocol, discoverer.url, discoverer.accessToken)
 		if err != nil {
 			discoverer.logger.Printf("error: could not register topic %s: %s", topic, err)
 			continue

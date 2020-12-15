@@ -27,9 +27,9 @@ type Options struct {
 // NewOptions make Options
 func NewOptions() *Options {
 	return &Options{
-		LogPrefix:                "[nsqToElasticsearch] ",
+		LogPrefix:                "[nsqToDingDing] ",
 		LogLevel:                 "info",
-		Channel:                  "nsqToElasticsearch",
+		Channel:                  "nsqToDingDing",
 		MaxInFlight:              200,
 		OutputDir:                "/tmp",
 		TopicRefreshInterval:     time.Minute,

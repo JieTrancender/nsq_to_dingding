@@ -5,13 +5,10 @@ import (
 	"fmt"
 	"github.com/mreiferson/go-options"
 	"github.com/nsqio/go-nsq"
-	// "strings"
-	// "github.com/olivere/elastic"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
-	// "sync"
 	"time"
 )
 
@@ -35,43 +32,38 @@ func (arrayFlags *ArrayFlags) Get() interface{} {
 	return []string(*arrayFlags)
 }
 
-// VERSION verions of nsqToElasticsearch
+// VERSION verions of nsqToDingDing
 const VERSION = "0.0.1"
 
 func flagSet() *flag.FlagSet {
-	fs := flag.NewFlagSet("nsqToElasticsearch", flag.ExitOnError)
+	fs := flag.NewFlagSet("nsqToDingDing", flag.ExitOnError)
 
 	fs.Bool("version", false, "show version")
 	fs.String("log-level", "info", "set log verbosity: debug, info, warn, error, or fatal")
-	fs.String("log-prefix", "[nsqToElasticsearch]", "log message prefix")
+	fs.String("log-prefix", "[nsqToDingDing]", "log message prefix")
 
-	fs.String("channel", "nsqToElasticsearch", "nsq channel")
+	fs.String("channel", "nsqToDingDing", "nsq channel")
 	fs.Int("max-in-flight", 200, "max number of messages to allow in flight")
 
 	fs.String("output-dir", "/tmp", "directory to write output files to")
 	fs.String("work-dir", "", "directory for in-progress files before moving to output-dir")
 	fs.Duration("topic-refresh", time.Minute, "how frequently the topic list should be refreshed")
-	// fs.String("topic-pattern", "", "only log topics matching the following pattern")
-	fs.String("index-name", "nsq-%Y.%m.%d", "elasticsearch index name (strftime format)")
-	fs.String("index-type", "nsq", "elasticsearch index mapping")
-	fs.String("elastic-username", "", "username for elasticsearch base auth")
-	fs.String("elastic-password", "", "password for elastic base auth")
 
-	fs.Duration("sync-interval", 30*time.Second, "sync file to elasticsearch duration")
+	fs.Duration("sync-interval", 30*time.Second, "sync file to dingding duration")
 	fs.Int("publisher-num", 10, "number of concurrent publishers")
 
 	fs.Duration("http-client-connect-timeout", 2*time.Second, "timeout for HTTP connect")
 	fs.Duration("http-client-request-timeout", 5*time.Second, "timeout for HTTP request")
 
-	fs.String("dingding-access-token", "", "ding ding access token")
+	fs.String("http-protocol", "https", "http protocol(default https)")
+	fs.String("http-url", "oapi.dingtalk.com/robot/send", "http url(default oapi.dingtalk.com/robot/send)")
+	fs.String("http-access-token", "", "ding ding access token")
 
-	elasticHTTPAddrs := ArrayFlags{}
 	nsqdTCPAddrs := ArrayFlags{}
 	lookupdHTTPAddrs := ArrayFlags{}
 	topics := ArrayFlags{}
 	topicPatterns := ArrayFlags{}
 	consumerOpts := ArrayFlags{}
-	fs.Var(&elasticHTTPAddrs, "elasticsearch-http-address", "elasticsearch http address (may be given multiple times)")
 	fs.Var(&nsqdTCPAddrs, "nsqd-tcp-address", "nsqd TCP address (may be given multiple times)")
 	fs.Var(&lookupdHTTPAddrs, "lookupd-http-address", "lookupd HTTP address (may be given multiple times)")
 	fs.Var(&topics, "topic", "nsq topic (may be given multiple times)")
@@ -95,7 +87,7 @@ func main() {
 	// logger := log.New(os.Stdout, "[topic_discoverer]: ", log.LstdFlags)
 
 	if fs.Lookup("version").Value.(flag.Getter).Get().(bool) {
-		fmt.Printf("nsq_to_elasticsearch@v%s go-nsq@v%s\n", VERSION, nsq.VERSION)
+		fmt.Printf("nsq_to_dingding@v%s go-nsq@v%s\n", VERSION, nsq.VERSION)
 	}
 
 	if opts.Channel == "" {
@@ -135,7 +127,7 @@ func main() {
 	for _, opt := range opts.ConsumerOpts {
 		cfgFlag.Set(opt)
 	}
-	cfg.UserAgent = fmt.Sprintf("nsq_to_elasticsearch/%s go-nsq/%s", VERSION, nsq.VERSION)
+	cfg.UserAgent = fmt.Sprintf("nsq_to_dingding/%s go-nsq/%s", VERSION, nsq.VERSION)
 	cfg.MaxInFlight = opts.MaxInFlight
 
 	hupChan := make(chan os.Signal)
@@ -143,19 +135,16 @@ func main() {
 	signal.Notify(hupChan, syscall.SIGHUP)
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// if fs.Lookup("version").Value.(flag.Getter).Get().(bool) {
-	fmt.Println("elasticHTTPAddrs:", fs.Lookup("elasticsearch-http-address").Value.(flag.Getter).Get().([]string))
+	httpProtocol := fs.Lookup("http-protocol").Value.(flag.Getter).Get().(string)
+	httpURL := fs.Lookup("http-url").Value.(flag.Getter).Get().(string)
+	httpAccessToken := fs.Lookup("http-access-token").Value.(flag.Getter).Get().(string)
 
-	elasticAddrs := fs.Lookup("elasticsearch-http-address").Value.(flag.Getter).Get().([]string)
-	indexName := fs.Lookup("index-name").Value.(flag.Getter).Get().(string)
-	indexType := fs.Lookup("index-type").Value.(flag.Getter).Get().(string)
-	elasticUsername := fs.Lookup("elastic-username").Value.(flag.Getter).Get().(string)
-	elasticPassword := fs.Lookup("elastic-password").Value.(flag.Getter).Get().(string)
-	ddAccessToken := fs.Lookup("dingding-access-token").Value.(flag.Getter).Get().(string)
+	if httpAccessToken == "" {
+		fmt.Printf("warn: http access token is empty")
+	}
 
-	fmt.Printf("token:%s\n", ddAccessToken)
+	fmt.Printf("full url: %s://%s?accessToken=%s\n", httpProtocol, httpURL, httpAccessToken)
 	discoverer, _ := newTopicDiscoverer(opts, cfg, hupChan, termChan,
-		elasticAddrs, indexName, indexType, elasticUsername, elasticPassword,
-		ddAccessToken)
+		httpProtocol, httpURL, httpAccessToken)
 	discoverer.run()
 }

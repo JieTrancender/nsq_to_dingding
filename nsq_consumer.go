@@ -8,7 +8,7 @@ import (
 
 // NSQConsumer nsq consumer structure
 type NSQConsumer struct {
-	publisher *ElasticPublisher
+	publisher *DingDingPublisher
 	opts      *Options
 	topic     string
 	consumer  *nsq.Consumer
@@ -21,9 +21,9 @@ type NSQConsumer struct {
 
 // NewNSQConsumer create NSQConsumer
 func NewNSQConsumer(opts *Options, topic string, cfg *nsq.Config,
-	elasticAddrs []string, idxName, idxType, elasticUsername, elasticPassword, ddAccessToken string) (*NSQConsumer, error) {
+	protocol, url, accessToken string) (*NSQConsumer, error) {
 	log.Println("NewNSQConsumer topic", topic)
-	publisher, err := NewElasticPublisher(idxName, idxType, elasticAddrs, elasticUsername, elasticPassword, ddAccessToken)
+	publisher, err := NewDingDingPublisher(protocol, url, accessToken)
 	if err != nil {
 		return nil, err
 	}
