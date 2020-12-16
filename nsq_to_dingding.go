@@ -58,18 +58,23 @@ func flagSet() *flag.FlagSet {
 	fs.String("http-protocol", "https", "http protocol(default https)")
 	fs.String("http-url", "oapi.dingtalk.com/robot/send", "http url(default oapi.dingtalk.com/robot/send)")
 
+	fs.String("etcd-username", "", "etcd basic auth username")
+	fs.String("etcd-password", "", "etcd basic auth password")
+
 	nsqdTCPAddrs := ArrayFlags{}
 	lookupdHTTPAddrs := ArrayFlags{}
 	topics := ArrayFlags{}
 	topicPatterns := ArrayFlags{}
 	consumerOpts := ArrayFlags{}
 	httpAccessToken := ArrayFlags{}
+	etcdEndpoints := ArrayFlags{}
 	fs.Var(&nsqdTCPAddrs, "nsqd-tcp-address", "nsqd TCP address (may be given multiple times)")
 	fs.Var(&lookupdHTTPAddrs, "lookupd-http-address", "lookupd HTTP address (may be given multiple times)")
 	fs.Var(&topics, "topic", "nsq topic (may be given multiple times)")
 	fs.Var(&topicPatterns, "topic-pattern", "nsq topic pattern (may be given multiple times)")
 	fs.Var(&consumerOpts, "consumer-opt", "option to passthrough to nsq.Config (may be given multiple times, http://godoc.org/github.com/nsqio/go-nsq#Config)")
 	fs.Var(&httpAccessToken, "http-access-token", "http access token(may be given multiple times)")
+	fs.Var(&etcdEndpoints, "etcd-endpoint", "etcd endpoint(may be given multiple times)")
 
 	return fs
 }
@@ -143,12 +148,17 @@ func main() {
 	httpURL := fs.Lookup("http-url").Value.(flag.Getter).Get().(string)
 	httpAccessToken := fs.Lookup("http-access-token").Value.(flag.Getter).Get().([]string)
 
+	etcdEndpoints := fs.Lookup("etcd-endpoint").Value.(flag.Getter).Get().([]string)
+	etcdUsername := fs.Lookup("etcd-username").Value.(flag.Getter).Get().(string)
+	etcdPassword := fs.Lookup("etcd-password").Value.(flag.Getter).Get().(string)
+
 	if len(httpAccessToken) == 0 {
 		fmt.Printf("warn: http access token is empty")
 	}
 
 	fmt.Printf("full url: %s://%s?accessToken=%s\n", httpProtocol, httpURL, httpAccessToken)
 	discoverer, _ := newTopicDiscoverer(opts, cfg, hupChan, termChan,
-		httpProtocol, httpURL, httpAccessToken)
+		httpProtocol, httpURL, httpAccessToken,
+		etcdEndpoints, etcdUsername, etcdPassword)
 	discoverer.run()
 }

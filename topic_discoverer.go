@@ -11,30 +11,37 @@ import (
 
 // TopicDiscoverer struct of topic discoverer
 type TopicDiscoverer struct {
-	opts        *Options
-	topics      map[string]*NSQConsumer
-	termChan    chan os.Signal
-	hupChan     chan os.Signal
-	logger      *log.Logger
-	wg          sync.WaitGroup
-	cfg         *nsq.Config
-	protocol    string
-	url         string
-	accessToken []string
+	opts          *Options
+	topics        map[string]*NSQConsumer
+	termChan      chan os.Signal
+	hupChan       chan os.Signal
+	logger        *log.Logger
+	wg            sync.WaitGroup
+	cfg           *nsq.Config
+	protocol      string
+	url           string
+	accessToken   []string
+	etcdEndpoints []string
+	etcdUsername  string
+	etcdPassword  string
 }
 
 func newTopicDiscoverer(opts *Options, cfg *nsq.Config, hupChan chan os.Signal, termChan chan os.Signal,
-	protocol, url string, accessToken []string) (*TopicDiscoverer, error) {
+	protocol, url string, accessToken []string,
+	etcdEndpoints []string, etcdUsername, etcdPassword string) (*TopicDiscoverer, error) {
 	discoverer := &TopicDiscoverer{
-		opts:        opts,
-		topics:      make(map[string]*NSQConsumer),
-		termChan:    termChan,
-		hupChan:     hupChan,
-		logger:      log.New(os.Stdout, "[topic_discoverer]: ", log.LstdFlags),
-		cfg:         cfg,
-		protocol:    protocol,
-		url:         url,
-		accessToken: accessToken,
+		opts:          opts,
+		topics:        make(map[string]*NSQConsumer),
+		termChan:      termChan,
+		hupChan:       hupChan,
+		logger:        log.New(os.Stdout, "[topic_discoverer]: ", log.LstdFlags),
+		cfg:           cfg,
+		protocol:      protocol,
+		url:           url,
+		accessToken:   accessToken,
+		etcdEndpoints: etcdEndpoints,
+		etcdUsername:  etcdUsername,
+		etcdPassword:  etcdPassword,
 	}
 
 	return discoverer, nil
