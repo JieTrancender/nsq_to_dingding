@@ -3,13 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/mreiferson/go-options"
-	"github.com/nsqio/go-nsq"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/mreiferson/go-options"
+	"github.com/nsqio/go-nsq"
 )
 
 // ArrayFlags for multi flag value
@@ -153,12 +154,22 @@ func main() {
 	etcdPassword := fs.Lookup("etcd-password").Value.(flag.Getter).Get().(string)
 
 	if len(httpAccessToken) == 0 {
-		fmt.Printf("warn: http access token is empty")
+		fmt.Println("warn: http access token is empty")
+	}
+
+	if len(etcdEndpoints) == 0 {
+		log.Fatal("error: not any etcd endpoint")
 	}
 
 	fmt.Printf("full url: %s://%s?accessToken=%s\n", httpProtocol, httpURL, httpAccessToken)
-	discoverer, _ := newTopicDiscoverer(opts, cfg, hupChan, termChan,
+	discoverer, err := newTopicDiscoverer(opts, cfg, hupChan, termChan,
 		httpProtocol, httpURL, httpAccessToken,
 		etcdEndpoints, etcdUsername, etcdPassword)
-	discoverer.run()
+	if err != nil {
+		log.Fatal("newTopicDiscoverer fail ", err)
+	}
+	err = discoverer.run()
+	if err != nil {
+		log.Fatal("run failed", err)
+	}
 }
