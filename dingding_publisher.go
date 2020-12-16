@@ -25,10 +25,16 @@ type DingDingReqMarkdown struct {
 	Text  string `json:"text"`
 }
 
+// DingDingReqText dingding req text schema structure
+type DingDingReqText struct {
+	Content string `json:"content"`
+}
+
 // DingDingReqBodyInfo dingding req body structure
 type DingDingReqBodyInfo struct {
 	MsgType  string              `json:"msgtype"`
 	Markdown DingDingReqMarkdown `json:"markdown"`
+	Text     DingDingReqText     `json:"text"`
 }
 
 // DingDingPublisher dingding publisher structure
@@ -37,6 +43,7 @@ type DingDingPublisher struct {
 	accessToken string
 	url         string
 	protocol    string
+	schema      string
 }
 
 // NewDingDingPublisher create dingding publisher
@@ -46,6 +53,7 @@ func NewDingDingPublisher(protocol, url, accessToken string) (*DingDingPublisher
 		protocol:    protocol,
 		url:         url,
 		accessToken: accessToken,
+		schema:      "text",
 	}
 
 	publisher.client = &http.Client{}
@@ -67,8 +75,26 @@ func generateMarkDownBody(logData LogDataInfo) ([]byte, error) {
 	return json.Marshal(reqBody)
 }
 
+// generateTextBody generate text schema alarm msg
+func generateTextBody(logData LogDataInfo) ([]byte, error) {
+	reqBody := DingDingReqBodyInfo{
+		MsgType: "text",
+		Text: DingDingReqText{
+			Content: fmt.Sprintf("%s渠道%s节点报错收集", logData.GamePlatform, logData.NodeName),
+		},
+	}
+
+	return json.Marshal(reqBody)
+}
+
 func (publisher *DingDingPublisher) sendDingDingMsg(logData LogDataInfo) {
-	reqBodyJSON, err := generateMarkDownBody(logData)
+	var reqBodyJSON []byte
+	var err error
+	if publisher.schema == "text" {
+		reqBodyJSON, err = generateTextBody(logData)
+	} else {
+		reqBodyJSON, err = generateMarkDownBody(logData)
+	}
 	if err != nil {
 		fmt.Printf("generateMarkDownBody fail:%s", err)
 		return
