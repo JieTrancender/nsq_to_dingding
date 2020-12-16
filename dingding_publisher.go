@@ -18,6 +18,7 @@ type LogDataInfo struct {
 	NodeName     string `json:"nodeName"`
 	FileName     string `json:"fileName"`
 	Msg          string `json:"message"`
+	IsAtAll      bool   `json:"isAtAll"`
 }
 
 // DingDingReqMarkdown dingding req markdown schema structure
@@ -84,7 +85,7 @@ func generateMarkDownBody(logData LogDataInfo) ([]byte, error) {
 		},
 		At: DingDingReqAtInfo{
 			AtMobiles: []string{},
-			IsAtAll:   true,
+			IsAtAll:   logData.IsAtAll,
 		},
 	}
 
@@ -100,7 +101,7 @@ func generateTextBody(logData LogDataInfo) ([]byte, error) {
 		},
 		At: DingDingReqAtInfo{
 			AtMobiles: []string{},
-			IsAtAll:   true,
+			IsAtAll:   logData.IsAtAll,
 		},
 	}
 
@@ -187,11 +188,18 @@ func (publisher *DingDingPublisher) filterMessage(gamePlatform, nodeName, fileNa
 		return
 	}
 
+	isAtAll := true
+	// not at all people for some key
+	if strings.Contains(msg, "websocket") {
+		isAtAll = false
+	}
+
 	logData := LogDataInfo{
 		GamePlatform: gamePlatform,
 		NodeName:     nodeName,
 		FileName:     fileName,
 		Msg:          msg,
+		IsAtAll:      isAtAll,
 	}
 	go publisher.sendDingDingMsg(logData, accessToken)
 }
