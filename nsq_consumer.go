@@ -21,7 +21,7 @@ type NSQConsumer struct {
 
 // NewNSQConsumer create NSQConsumer
 func NewNSQConsumer(opts *Options, topic string, cfg *nsq.Config,
-	protocol, url, accessToken string) (*NSQConsumer, error) {
+	protocol, url string, accessToken []string) (*NSQConsumer, error) {
 	log.Println("NewNSQConsumer topic", topic)
 	publisher, err := NewDingDingPublisher(protocol, url, accessToken)
 	if err != nil {

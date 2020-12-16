@@ -57,18 +57,19 @@ func flagSet() *flag.FlagSet {
 
 	fs.String("http-protocol", "https", "http protocol(default https)")
 	fs.String("http-url", "oapi.dingtalk.com/robot/send", "http url(default oapi.dingtalk.com/robot/send)")
-	fs.String("http-access-token", "", "ding ding access token")
 
 	nsqdTCPAddrs := ArrayFlags{}
 	lookupdHTTPAddrs := ArrayFlags{}
 	topics := ArrayFlags{}
 	topicPatterns := ArrayFlags{}
 	consumerOpts := ArrayFlags{}
+	httpAccessToken := ArrayFlags{}
 	fs.Var(&nsqdTCPAddrs, "nsqd-tcp-address", "nsqd TCP address (may be given multiple times)")
 	fs.Var(&lookupdHTTPAddrs, "lookupd-http-address", "lookupd HTTP address (may be given multiple times)")
 	fs.Var(&topics, "topic", "nsq topic (may be given multiple times)")
 	fs.Var(&topicPatterns, "topic-pattern", "nsq topic pattern (may be given multiple times)")
 	fs.Var(&consumerOpts, "consumer-opt", "option to passthrough to nsq.Config (may be given multiple times, http://godoc.org/github.com/nsqio/go-nsq#Config)")
+	fs.Var(&httpAccessToken, "http-access-token", "http access token(may be given multiple times)")
 
 	return fs
 }
@@ -140,9 +141,9 @@ func main() {
 
 	httpProtocol := fs.Lookup("http-protocol").Value.(flag.Getter).Get().(string)
 	httpURL := fs.Lookup("http-url").Value.(flag.Getter).Get().(string)
-	httpAccessToken := fs.Lookup("http-access-token").Value.(flag.Getter).Get().(string)
+	httpAccessToken := fs.Lookup("http-access-token").Value.(flag.Getter).Get().([]string)
 
-	if httpAccessToken == "" {
+	if len(httpAccessToken) == 0 {
 		fmt.Printf("warn: http access token is empty")
 	}
 
