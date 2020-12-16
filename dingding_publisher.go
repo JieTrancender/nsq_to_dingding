@@ -30,11 +30,19 @@ type DingDingReqText struct {
 	Content string `json:"content"`
 }
 
+// DingDingReqAtInfo dingding req at structure
+// for dingding's bug, ony IsAtAll can be used when schema is markdown
+type DingDingReqAtInfo struct {
+	AtMobiles []string `json:"atMobiles"`
+	IsAtAll   bool     `json:"isAtAll"`
+}
+
 // DingDingReqBodyInfo dingding req body structure
 type DingDingReqBodyInfo struct {
 	MsgType  string              `json:"msgtype"`
 	Markdown DingDingReqMarkdown `json:"markdown"`
 	Text     DingDingReqText     `json:"text"`
+	At       DingDingReqAtInfo   `json:"at"`
 }
 
 // DingDingPublisher dingding publisher structure
@@ -53,7 +61,7 @@ func NewDingDingPublisher(protocol, url, accessToken string) (*DingDingPublisher
 		protocol:    protocol,
 		url:         url,
 		accessToken: accessToken,
-		schema:      "text",
+		schema:      "markdown",
 	}
 
 	publisher.client = &http.Client{}
@@ -67,8 +75,12 @@ func generateMarkDownBody(logData LogDataInfo) ([]byte, error) {
 		MsgType: "markdown",
 		Markdown: DingDingReqMarkdown{
 			Title: "报错信息",
-			Text: fmt.Sprintf("\n\n## %s渠道%s节点报错收集\n\n文件名:**%s**\n\n```lua\n%s\n```",
+			Text: fmt.Sprintf("\n\n## %s渠道%s节点报错收集\n\n文件名:**%s**\n\n```lua\n%s\n```\n\nnew line",
 				logData.GamePlatform, logData.NodeName, logData.FileName, logData.Msg),
+		},
+		At: DingDingReqAtInfo{
+			AtMobiles: []string{},
+			IsAtAll:   true,
 		},
 	}
 
@@ -81,6 +93,10 @@ func generateTextBody(logData LogDataInfo) ([]byte, error) {
 		MsgType: "text",
 		Text: DingDingReqText{
 			Content: fmt.Sprintf("%s渠道%s节点报错收集", logData.GamePlatform, logData.NodeName),
+		},
+		At: DingDingReqAtInfo{
+			AtMobiles: []string{},
+			IsAtAll:   true,
 		},
 	}
 
