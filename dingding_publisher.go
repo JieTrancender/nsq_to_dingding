@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/nsqio/go-nsq"
 )
@@ -48,20 +49,23 @@ type DingDingReqBodyInfo struct {
 // DingDingPublisher dingding publisher structure
 type DingDingPublisher struct {
 	client      *http.Client
-	accessToken string
+	accessToken []string
+	tokenIndex  int
+	tokenMu     sync.Mutex
 	url         string
 	protocol    string
 	schema      string
 }
 
 // NewDingDingPublisher create dingding publisher
-func NewDingDingPublisher(protocol, url, accessToken string) (*DingDingPublisher, error) {
+func NewDingDingPublisher(protocol, url string, accessToken []string) (*DingDingPublisher, error) {
 	var err error
 	publisher := &DingDingPublisher{
 		protocol:    protocol,
 		url:         url,
 		accessToken: accessToken,
 		schema:      "markdown",
+		tokenIndex:  0,
 	}
 
 	publisher.client = &http.Client{}
@@ -103,7 +107,30 @@ func generateTextBody(logData LogDataInfo) ([]byte, error) {
 	return json.Marshal(reqBody)
 }
 
-func (publisher *DingDingPublisher) sendDingDingMsg(logData LogDataInfo) {
+// generateAccessToken get access token by loop
+func (publisher *DingDingPublisher) generateAccessToken() string {
+	var accessToken string
+	if len(publisher.accessToken) == 0 {
+		return accessToken
+	}
+
+	publisher.tokenMu.Lock()
+	defer publisher.tokenMu.Unlock()
+
+	if len(publisher.accessToken) == 0 {
+		return accessToken
+	}
+
+	accessToken = publisher.accessToken[publisher.tokenIndex]
+	publisher.tokenIndex = publisher.tokenIndex + 1
+	if publisher.tokenIndex == len(publisher.accessToken) {
+		publisher.tokenIndex = 0
+	}
+
+	return accessToken
+}
+
+func (publisher *DingDingPublisher) sendDingDingMsg(logData LogDataInfo, accessToken string) {
 	var reqBodyJSON []byte
 	var err error
 	if publisher.schema == "text" {
@@ -117,7 +144,7 @@ func (publisher *DingDingPublisher) sendDingDingMsg(logData LogDataInfo) {
 	}
 
 	req, err := http.NewRequest("POST", fmt.Sprintf("%s://%s?access_token=%s", publisher.protocol, publisher.url,
-		publisher.accessToken), bytes.NewReader(reqBodyJSON))
+		accessToken), bytes.NewReader(reqBodyJSON))
 	if err != nil {
 		fmt.Printf("sendDingDingMsg fail:%v %s", err, string(reqBodyJSON))
 		return
@@ -155,7 +182,8 @@ func (publisher *DingDingPublisher) filterMessage(gamePlatform, nodeName, fileNa
 		return
 	}
 
-	if publisher.accessToken == "" {
+	accessToken := publisher.generateAccessToken()
+	if accessToken == "" {
 		return
 	}
 
@@ -165,7 +193,7 @@ func (publisher *DingDingPublisher) filterMessage(gamePlatform, nodeName, fileNa
 		FileName:     fileName,
 		Msg:          msg,
 	}
-	go publisher.sendDingDingMsg(logData)
+	go publisher.sendDingDingMsg(logData, accessToken)
 }
 
 func (publisher *DingDingPublisher) handleMessage(m *nsq.Message) error {

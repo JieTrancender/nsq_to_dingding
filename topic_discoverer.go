@@ -20,11 +20,11 @@ type TopicDiscoverer struct {
 	cfg         *nsq.Config
 	protocol    string
 	url         string
-	accessToken string
+	accessToken []string
 }
 
 func newTopicDiscoverer(opts *Options, cfg *nsq.Config, hupChan chan os.Signal, termChan chan os.Signal,
-	protocol, url, accessToken string) (*TopicDiscoverer, error) {
+	protocol, url string, accessToken []string) (*TopicDiscoverer, error) {
 	discoverer := &TopicDiscoverer{
 		opts:        opts,
 		topics:      make(map[string]*NSQConsumer),
