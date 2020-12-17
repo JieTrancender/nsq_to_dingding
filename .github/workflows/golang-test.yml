@@ -41,6 +41,7 @@ jobs:
 
     - name: Test
       run: make test
+      run: bash <(curl -s https://codecov.io/bash) -t ${{ secrets.CODECOV_TOKEN }}
         
     - name: test etcd
       run: sudo ./test/shell/cli_test.sh
