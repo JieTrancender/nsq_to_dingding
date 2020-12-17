@@ -2,11 +2,10 @@ package main
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
-	"regexp"
 	"sync"
 	"time"
 
@@ -14,10 +13,16 @@ import (
 	"github.com/nsqio/go-nsq"
 )
 
-// FilterConfigStruct filter config structure
-// type FilterConfigStruct struct {
-// 	FilterKeys []string `json:"filterKeys"`
-// }
+// NsqToDingDingConfig config structure
+type NsqToDingDingConfig struct {
+	LookupdHTTPAddresses []string      `json:"lookupd-http-addresses"`
+	NsqdTCPAddresses     []string      `json:"nsqd-tcp-addresses"`
+	HTTPAccessTokens     []string      `json:"http-access-tokens"`
+	Topics               []string      `json:"topics"`
+	TopicRefreshInterval time.Duration `json:"topic-refresh-interval"`
+	URL                  string        `json:"url"`
+	Protocol             string        `json:"protocol"`
+}
 
 // TopicDiscoverer struct of topic discoverer
 type TopicDiscoverer struct {
@@ -36,6 +41,8 @@ type TopicDiscoverer struct {
 	etcdPassword  string
 	etcdPath      string // etcd config path
 	etcdCli       *clientv3.Client
+	config        *NsqToDingDingConfig
+	watcher       clientv3.Watcher
 }
 
 func newTopicDiscoverer(opts *Options, cfg *nsq.Config, hupChan chan os.Signal, termChan chan os.Signal,
@@ -54,7 +61,7 @@ func newTopicDiscoverer(opts *Options, cfg *nsq.Config, hupChan chan os.Signal, 
 		etcdEndpoints: etcdEndpoints,
 		etcdUsername:  etcdUsername,
 		etcdPassword:  etcdPassword,
-		etcdPath:      "/config/nsq_to_dingding/",
+		etcdPath:      "/config/nsq_to_dingding/default",
 	}
 
 	etcdCli, err := clientv3.New(clientv3.Config{
@@ -70,36 +77,14 @@ func newTopicDiscoverer(opts *Options, cfg *nsq.Config, hupChan chan os.Signal, 
 	return discoverer, nil
 }
 
-func (discoverer *TopicDiscoverer) isTopicAllowed(topic string) bool {
-	if len(discoverer.opts.TopicPatterns) == 0 {
-		return true
-	}
-
-	var match bool
-	var err error
-	for _, pattern := range discoverer.opts.TopicPatterns {
-		match, err = regexp.MatchString(pattern, topic)
-		if err == nil {
-			break
-		}
-	}
-
-	return match
-}
-
 func (discoverer *TopicDiscoverer) updateTopics(topics []string) {
 	for _, topic := range topics {
 		if _, ok := discoverer.topics[topic]; ok {
 			continue
 		}
 
-		if !discoverer.isTopicAllowed(topic) {
-			discoverer.logger.Printf("skipping topic %s (doesn't match any pattern)\n", topic)
-			continue
-		}
-
 		nsqConsumer, err := NewNSQConsumer(discoverer.opts, topic, discoverer.cfg,
-			discoverer.protocol, discoverer.url, discoverer.accessToken)
+			discoverer.config.Protocol, discoverer.config.URL, discoverer.config.HTTPAccessTokens)
 		if err != nil {
 			discoverer.logger.Printf("error: could not register topic %s: %s", topic, err)
 			continue
@@ -114,22 +99,89 @@ func (discoverer *TopicDiscoverer) updateTopics(topics []string) {
 	}
 }
 
+func newNsqToDingDingConfig() *NsqToDingDingConfig {
+	config := &NsqToDingDingConfig{
+		Protocol: "http",
+		URL:      "oapi.dingtalk.com/robot/send",
+	}
+
+	return config
+}
+
+func (discoverer *TopicDiscoverer) watchConfig(watchStartVer int64) {
+	discoverer.watcher = clientv3.NewWatcher(discoverer.etcdCli)
+	watchChan := discoverer.watcher.Watch(context.Background(), discoverer.etcdPath, clientv3.WithRev(watchStartVer))
+	for resp := range watchChan {
+		for _, ev := range resp.Events {
+			if ev.Type == clientv3.EventTypePut {
+				fmt.Printf("watchConfig %s, %s %s", ev.Type, string(ev.Kv.Key), string(ev.Kv.Value))
+				config := newNsqToDingDingConfig()
+				err := json.Unmarshal(ev.Kv.Value, config)
+				if err != nil {
+					fmt.Println("配置格式错误", string(ev.Kv.Value))
+					break
+				}
+
+				// todo: 检查配置格式
+				discoverer.config = config
+
+				// 更新配置信息
+				fmt.Println("更新配置信息", discoverer.config)
+
+				break
+			}
+		}
+	}
+}
+
 // initAndWatchConfig get and watch etcd config
 func (discoverer *TopicDiscoverer) initAndWatchConfig() error {
-	resp, err := discoverer.etcdCli.Get(context.Background(), discoverer.etcdPath, clientv3.WithPrefix())
+	kv := clientv3.NewKV(discoverer.etcdCli)
+	resp, err := kv.Get(context.Background(), discoverer.etcdPath)
 	if err != nil {
 		return err
 	}
 
-	// err := json.Unmarshal(resp.Node.Value)
+	isConfigFound := false
+	var config = newNsqToDingDingConfig()
+	for _, ev := range resp.Kvs {
+		fmt.Printf("range %s %s\n", string(ev.Key), string(discoverer.etcdPath))
+		if string(ev.Key) == discoverer.etcdPath {
+			// todo: schema check
+			err := json.Unmarshal(ev.Value, config)
+			if err != nil {
+				return fmt.Errorf("配置格式错误:%s", string(ev.Value))
+			}
 
-	fmt.Println(resp)
+			isConfigFound = true
+			break
+		}
+	}
 
-	return errors.New("fsdf")
+	if !isConfigFound {
+		return fmt.Errorf("Config is not exist in %s", discoverer.etcdPath)
+	}
 
-	// cli, err := clientv3.New(clientv3.Config{
-	// 	Endpoints: discoverer.Endpoints
-	// })
+	if len(config.LookupdHTTPAddresses) == 0 && len(config.NsqdTCPAddresses) == 0 {
+		return fmt.Errorf("Config is invalid, lookupd-http-address or nsqd-tcp-address is required")
+	}
+
+	if len(config.LookupdHTTPAddresses) != 0 && len(config.NsqdTCPAddresses) != 0 {
+		return fmt.Errorf("Config is invalid, use lookupd-http-address or nsqd-tcp-address, not both")
+	}
+
+	if len(config.Topics) == 0 {
+		return fmt.Errorf("Config is invalid, topic is required")
+	}
+
+	discoverer.config = config
+
+	fmt.Println("init conifg", config)
+	discoverer.wg.Add(1)
+	watchStartVer := resp.Header.Revision + 1
+	go discoverer.watchConfig(watchStartVer)
+
+	return nil
 }
 
 func (discoverer *TopicDiscoverer) run() error {
@@ -138,26 +190,30 @@ func (discoverer *TopicDiscoverer) run() error {
 		return err
 	}
 
-	var ticker <-chan time.Time
-	if len(discoverer.opts.Topics) == 0 {
-		ticker = time.Tick(discoverer.opts.TopicRefreshInterval)
-	}
-	discoverer.updateTopics(discoverer.opts.Topics)
+	ticker := time.Tick(discoverer.config.TopicRefreshInterval * time.Second)
+	discoverer.updateTopics(discoverer.config.Topics)
 
 forloop:
 	for {
 		select {
 		case <-ticker:
-			discoverer.updateTopics(discoverer.opts.Topics)
+			discoverer.updateTopics(discoverer.config.Topics)
 		case <-discoverer.termChan:
+			discoverer.watcher.Close()
+			discoverer.wg.Done()
+
 			discoverer.etcdCli.Close()
 
 			for _, nsqConsumer := range discoverer.topics {
-				// nsqConsumer.consumer.Stop()
 				close(nsqConsumer.termChan)
 			}
 			break forloop
 		case <-discoverer.hupChan:
+			discoverer.watcher.Close()
+			discoverer.wg.Done()
+
+			discoverer.etcdCli.Close()
+
 			for _, nsqConsumer := range discoverer.topics {
 				nsqConsumer.hupChan <- true
 			}

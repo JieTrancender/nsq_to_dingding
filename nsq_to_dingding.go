@@ -61,6 +61,7 @@ func flagSet() *flag.FlagSet {
 
 	fs.String("etcd-username", "", "etcd basic auth username")
 	fs.String("etcd-password", "", "etcd basic auth password")
+	fs.String("etcd-path", "/config/nsq_to_dingding/default", "etcd config path")
 
 	nsqdTCPAddrs := ArrayFlags{}
 	lookupdHTTPAddrs := ArrayFlags{}
@@ -170,6 +171,6 @@ func main() {
 	}
 	err = discoverer.run()
 	if err != nil {
-		log.Fatal("run failed", err)
+		log.Fatal("run failed, err: ", err)
 	}
 }
