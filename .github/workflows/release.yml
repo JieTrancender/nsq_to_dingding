@@ -5,7 +5,7 @@ on:
     tags:
       - v*
 
-jobs:
+job:
   goreleaser:
     runs-on: ubuntu-latest
     setps:
