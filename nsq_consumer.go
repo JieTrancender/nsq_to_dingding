@@ -20,10 +20,10 @@ type NSQConsumer struct {
 }
 
 // NewNSQConsumer create NSQConsumer
-func NewNSQConsumer(opts *Options, topic string, cfg *nsq.Config,
-	protocol, url string, accessToken []string) (*NSQConsumer, error) {
+func NewNSQConsumer(opts *Options, topic string, cfg *nsq.Config, config *NsqToDingDingConfig,
+	protocol, url string, accessTokens []string) (*NSQConsumer, error) {
 	log.Println("NewNSQConsumer topic", topic)
-	publisher, err := NewDingDingPublisher(protocol, url, accessToken)
+	publisher, err := NewDingDingPublisher(protocol, url, accessTokens)
 	if err != nil {
 		return nil, err
 	}
@@ -44,17 +44,21 @@ func NewNSQConsumer(opts *Options, topic string, cfg *nsq.Config,
 	}
 	consumer.AddHandler(nsqConsumer)
 
-	err = consumer.ConnectToNSQDs(opts.NSQDTCPAddrs)
+	err = consumer.ConnectToNSQDs(config.NsqdTCPAddresses)
 	if err != nil {
 		return nil, err
 	}
 
-	err = consumer.ConnectToNSQLookupds(opts.NSQLookupdHTTPAddrs)
+	err = consumer.ConnectToNSQLookupds(config.LookupdHTTPAddresses)
 	if err != nil {
 		return nil, err
 	}
 
 	return nsqConsumer, nil
+}
+
+func (nsqConsumer *NSQConsumer) updateConfig(protocol, url string, accessTokens []string) {
+	nsqConsumer.publisher.updateConfig(protocol, url, accessTokens)
 }
 
 // HandleMessage implement of NSQ HandleMessage interface

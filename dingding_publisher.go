@@ -49,24 +49,24 @@ type DingDingReqBodyInfo struct {
 
 // DingDingPublisher dingding publisher structure
 type DingDingPublisher struct {
-	client      *http.Client
-	accessToken []string
-	tokenIndex  int
-	tokenMu     sync.Mutex
-	url         string
-	protocol    string
-	schema      string
+	client       *http.Client
+	accessTokens []string
+	tokenIndex   int
+	tokenMu      sync.Mutex
+	url          string
+	protocol     string
+	schema       string
 }
 
 // NewDingDingPublisher create dingding publisher
-func NewDingDingPublisher(protocol, url string, accessToken []string) (*DingDingPublisher, error) {
+func NewDingDingPublisher(protocol, url string, accessTokens []string) (*DingDingPublisher, error) {
 	var err error
 	publisher := &DingDingPublisher{
-		protocol:    protocol,
-		url:         url,
-		accessToken: accessToken,
-		schema:      "markdown",
-		tokenIndex:  0,
+		protocol:     protocol,
+		url:          url,
+		accessTokens: accessTokens,
+		schema:       "markdown",
+		tokenIndex:   0,
 	}
 
 	publisher.client = &http.Client{}
@@ -111,20 +111,20 @@ func generateTextBody(logData LogDataInfo) ([]byte, error) {
 // generateAccessToken get access token by loop
 func (publisher *DingDingPublisher) generateAccessToken() string {
 	var accessToken string
-	if len(publisher.accessToken) == 0 {
+	if len(publisher.accessTokens) == 0 {
 		return accessToken
 	}
 
 	publisher.tokenMu.Lock()
 	defer publisher.tokenMu.Unlock()
 
-	if len(publisher.accessToken) == 0 {
+	if len(publisher.accessTokens) == 0 {
 		return accessToken
 	}
 
-	accessToken = publisher.accessToken[publisher.tokenIndex]
+	accessToken = publisher.accessTokens[publisher.tokenIndex]
 	publisher.tokenIndex = publisher.tokenIndex + 1
-	if publisher.tokenIndex == len(publisher.accessToken) {
+	if publisher.tokenIndex == len(publisher.accessTokens) {
 		publisher.tokenIndex = 0
 	}
 
@@ -218,4 +218,11 @@ func (publisher *DingDingPublisher) handleMessage(m *nsq.Message) error {
 		data["message"].(string))
 
 	return err
+}
+
+func (publisher *DingDingPublisher) updateConfig(protocol, url string, accessTokens []string) {
+	publisher.protocol = protocol
+	publisher.url = url
+	publisher.accessTokens = accessTokens
+	fmt.Printf("nsqConsumer updateConfig: %s %s %v\n", protocol, url, accessTokens)
 }
