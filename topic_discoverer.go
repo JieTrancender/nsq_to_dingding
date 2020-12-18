@@ -33,9 +33,6 @@ type TopicDiscoverer struct {
 	logger        *log.Logger
 	wg            sync.WaitGroup
 	cfg           *nsq.Config
-	protocol      string
-	url           string
-	accessToken   []string
 	etcdEndpoints []string
 	etcdUsername  string
 	etcdPassword  string
@@ -46,7 +43,6 @@ type TopicDiscoverer struct {
 }
 
 func newTopicDiscoverer(opts *Options, cfg *nsq.Config, hupChan chan os.Signal, termChan chan os.Signal,
-	protocol, url string, accessToken []string,
 	etcdEndpoints []string, etcdUsername, etcdPassword string) (*TopicDiscoverer, error) {
 	discoverer := &TopicDiscoverer{
 		opts:          opts,
@@ -55,9 +51,6 @@ func newTopicDiscoverer(opts *Options, cfg *nsq.Config, hupChan chan os.Signal, 
 		hupChan:       hupChan,
 		logger:        log.New(os.Stdout, "[topic_discoverer]: ", log.LstdFlags),
 		cfg:           cfg,
-		protocol:      protocol,
-		url:           url,
-		accessToken:   accessToken,
 		etcdEndpoints: etcdEndpoints,
 		etcdUsername:  etcdUsername,
 		etcdPassword:  etcdPassword,
@@ -78,12 +71,13 @@ func newTopicDiscoverer(opts *Options, cfg *nsq.Config, hupChan chan os.Signal, 
 }
 
 func (discoverer *TopicDiscoverer) updateTopics(topics []string) {
+	fmt.Println(discoverer.topics)
 	for _, topic := range topics {
 		if _, ok := discoverer.topics[topic]; ok {
 			continue
 		}
 
-		nsqConsumer, err := NewNSQConsumer(discoverer.opts, topic, discoverer.cfg,
+		nsqConsumer, err := NewNSQConsumer(discoverer.opts, topic, discoverer.cfg, discoverer.config,
 			discoverer.config.Protocol, discoverer.config.URL, discoverer.config.HTTPAccessTokens)
 		if err != nil {
 			discoverer.logger.Printf("error: could not register topic %s: %s", topic, err)
@@ -99,10 +93,17 @@ func (discoverer *TopicDiscoverer) updateTopics(topics []string) {
 	}
 }
 
+func (discoverer *TopicDiscoverer) updateConifg() {
+	for _, consumer := range discoverer.topics {
+		consumer.updateConfig(discoverer.config.Protocol, discoverer.config.URL, discoverer.config.HTTPAccessTokens)
+	}
+}
+
 func newNsqToDingDingConfig() *NsqToDingDingConfig {
 	config := &NsqToDingDingConfig{
-		Protocol: "http",
-		URL:      "oapi.dingtalk.com/robot/send",
+		Protocol:             "http",
+		URL:                  "oapi.dingtalk.com/robot/send",
+		TopicRefreshInterval: 30,
 	}
 
 	return config
@@ -124,6 +125,9 @@ func (discoverer *TopicDiscoverer) watchConfig(watchStartVer int64) {
 
 				// todo: 检查配置格式
 				discoverer.config = config
+
+				// 所有消费者更新
+				discoverer.updateConifg()
 
 				// 更新配置信息
 				fmt.Println("更新配置信息", discoverer.config)
@@ -176,7 +180,7 @@ func (discoverer *TopicDiscoverer) initAndWatchConfig() error {
 
 	discoverer.config = config
 
-	fmt.Println("init conifg", config)
+	fmt.Println("init config", config)
 	discoverer.wg.Add(1)
 	watchStartVer := resp.Header.Revision + 1
 	go discoverer.watchConfig(watchStartVer)

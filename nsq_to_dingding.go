@@ -34,7 +34,7 @@ func (arrayFlags *ArrayFlags) Get() interface{} {
 }
 
 // VERSION verions of nsqToDingDing
-const VERSION = "0.0.1"
+const VERSION = "1.0.3"
 
 func flagSet() *flag.FlagSet {
 	fs := flag.NewFlagSet("nsqToDingDing", flag.ExitOnError)
@@ -49,6 +49,7 @@ func flagSet() *flag.FlagSet {
 	fs.String("output-dir", "/tmp", "directory to write output files to")
 	fs.String("work-dir", "", "directory for in-progress files before moving to output-dir")
 	fs.Duration("topic-refresh", time.Minute, "how frequently the topic list should be refreshed")
+	fs.Duration("lookupd-poll-interval", 6*time.Second, "lookupd poll interval")
 
 	fs.Duration("sync-interval", 30*time.Second, "sync file to dingding duration")
 	fs.Int("publisher-num", 10, "number of concurrent publishers")
@@ -63,19 +64,10 @@ func flagSet() *flag.FlagSet {
 	fs.String("etcd-password", "", "etcd basic auth password")
 	fs.String("etcd-path", "/config/nsq_to_dingding/default", "etcd config path")
 
-	nsqdTCPAddrs := ArrayFlags{}
-	lookupdHTTPAddrs := ArrayFlags{}
-	topics := ArrayFlags{}
-	topicPatterns := ArrayFlags{}
 	consumerOpts := ArrayFlags{}
-	httpAccessToken := ArrayFlags{}
 	etcdEndpoints := ArrayFlags{}
-	fs.Var(&nsqdTCPAddrs, "nsqd-tcp-address", "nsqd TCP address (may be given multiple times)")
-	fs.Var(&lookupdHTTPAddrs, "lookupd-http-address", "lookupd HTTP address (may be given multiple times)")
-	fs.Var(&topics, "topic", "nsq topic (may be given multiple times)")
-	fs.Var(&topicPatterns, "topic-pattern", "nsq topic pattern (may be given multiple times)")
+
 	fs.Var(&consumerOpts, "consumer-opt", "option to passthrough to nsq.Config (may be given multiple times, http://godoc.org/github.com/nsqio/go-nsq#Config)")
-	fs.Var(&httpAccessToken, "http-access-token", "http access token(may be given multiple times)")
 	fs.Var(&etcdEndpoints, "etcd-endpoint", "etcd endpoint(may be given multiple times)")
 
 	return fs
@@ -113,22 +105,6 @@ func main() {
 		log.Fatal("--http-client-request-timeout should be positive")
 	}
 
-	if len(opts.NSQDTCPAddrs) == 0 && len(opts.NSQLookupdHTTPAddrs) == 0 {
-		log.Fatal("--nsqd-tcp-address or --lookupd-http-address required")
-	}
-
-	if len(opts.NSQDTCPAddrs) != 0 && len(opts.NSQLookupdHTTPAddrs) != 0 {
-		log.Fatal("use --nsqd-tcp-address or --lookupd-http-address not both")
-	}
-
-	if len(opts.Topics) == 0 && len(opts.TopicPatterns) == 0 {
-		log.Fatal("--topic or --topic-pattern required")
-	}
-
-	if len(opts.Topics) != 0 && len(opts.NSQLookupdHTTPAddrs) == 0 {
-		log.Fatal("--lookupd-http-address must be specified when no --topic specified")
-	}
-
 	if opts.WorkDir == "" {
 		opts.WorkDir = opts.OutputDir
 	}
@@ -146,25 +122,16 @@ func main() {
 	signal.Notify(hupChan, syscall.SIGHUP)
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)
 
-	httpProtocol := fs.Lookup("http-protocol").Value.(flag.Getter).Get().(string)
-	httpURL := fs.Lookup("http-url").Value.(flag.Getter).Get().(string)
-	httpAccessToken := fs.Lookup("http-access-token").Value.(flag.Getter).Get().([]string)
-
 	etcdEndpoints := fs.Lookup("etcd-endpoint").Value.(flag.Getter).Get().([]string)
 	etcdUsername := fs.Lookup("etcd-username").Value.(flag.Getter).Get().(string)
 	etcdPassword := fs.Lookup("etcd-password").Value.(flag.Getter).Get().(string)
-
-	if len(httpAccessToken) == 0 {
-		fmt.Println("warn: http access token is empty")
-	}
 
 	if len(etcdEndpoints) == 0 {
 		log.Fatal("error: not any etcd endpoint")
 	}
 
-	fmt.Printf("full url: %s://%s?accessToken=%s\n", httpProtocol, httpURL, httpAccessToken)
+	// fmt.Printf("full url: %s://%s?accessToken=%s\n", httpProtocol, httpURL, httpAccessToken)
 	discoverer, err := newTopicDiscoverer(opts, cfg, hupChan, termChan,
-		httpProtocol, httpURL, httpAccessToken,
 		etcdEndpoints, etcdUsername, etcdPassword)
 	if err != nil {
 		log.Fatal("newTopicDiscoverer fail ", err)
