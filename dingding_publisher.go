@@ -220,9 +220,10 @@ func (publisher *DingDingPublisher) handleMessage(m *nsq.Message) error {
 	return err
 }
 
-func (publisher *DingDingPublisher) updateConfig(protocol, url string, accessTokens []string) {
-	publisher.protocol = protocol
-	publisher.url = url
-	publisher.accessTokens = accessTokens
-	fmt.Printf("nsqConsumer updateConfig: %s %s %v\n", protocol, url, accessTokens)
+func (publisher *DingDingPublisher) updateConfig(config *NsqToDingDingConfig) {
+	publisher.protocol = config.Protocol
+	publisher.url = config.URL
+	publisher.accessTokens = config.HTTPAccessTokens
+	fmt.Printf("nsqConsumer updateConfig: %s %s %v %v\n", config.Protocol, config.URL, config.HTTPAccessTokens,
+		config.Filter)
 }

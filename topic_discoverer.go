@@ -13,15 +13,23 @@ import (
 	"github.com/nsqio/go-nsq"
 )
 
+// MsgFilterConfig msg fileter config structure
+type MsgFilterConfig struct {
+	FilterKeys []string `json:"filterKeys"`
+	IgnoreKeys []string `json:"ignoreKeys"`
+	NotAtKeys  []string `json:"notAtKeys"`
+}
+
 // NsqToDingDingConfig config structure
 type NsqToDingDingConfig struct {
-	LookupdHTTPAddresses []string      `json:"lookupd-http-addresses"`
-	NsqdTCPAddresses     []string      `json:"nsqd-tcp-addresses"`
-	HTTPAccessTokens     []string      `json:"http-access-tokens"`
-	Topics               []string      `json:"topics"`
-	TopicRefreshInterval time.Duration `json:"topic-refresh-interval"`
-	URL                  string        `json:"url"`
-	Protocol             string        `json:"protocol"`
+	LookupdHTTPAddresses []string        `json:"lookupd-http-addresses"`
+	NsqdTCPAddresses     []string        `json:"nsqd-tcp-addresses"`
+	HTTPAccessTokens     []string        `json:"http-access-tokens"`
+	Topics               []string        `json:"topics"`
+	TopicRefreshInterval time.Duration   `json:"topic-refresh-interval"`
+	URL                  string          `json:"url"`
+	Protocol             string          `json:"protocol"`
+	Filter               MsgFilterConfig `json:"filter"`
 }
 
 // TopicDiscoverer struct of topic discoverer
@@ -77,8 +85,7 @@ func (discoverer *TopicDiscoverer) updateTopics(topics []string) {
 			continue
 		}
 
-		nsqConsumer, err := NewNSQConsumer(discoverer.opts, topic, discoverer.cfg, discoverer.config,
-			discoverer.config.Protocol, discoverer.config.URL, discoverer.config.HTTPAccessTokens)
+		nsqConsumer, err := NewNSQConsumer(discoverer.opts, topic, discoverer.cfg, discoverer.config)
 		if err != nil {
 			discoverer.logger.Printf("error: could not register topic %s: %s", topic, err)
 			continue
@@ -95,7 +102,7 @@ func (discoverer *TopicDiscoverer) updateTopics(topics []string) {
 
 func (discoverer *TopicDiscoverer) updateConifg() {
 	for _, consumer := range discoverer.topics {
-		consumer.updateConfig(discoverer.config.Protocol, discoverer.config.URL, discoverer.config.HTTPAccessTokens)
+		consumer.updateConfig(discoverer.config)
 	}
 }
 
