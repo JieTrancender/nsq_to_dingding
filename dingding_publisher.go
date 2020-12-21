@@ -179,7 +179,8 @@ func (publisher *DingDingPublisher) filterMessage(gamePlatform, nodeName, fileNa
 	}
 
 	// 特定关键字不报错，例如聊天后台请求
-	if strings.Contains(msg, "chatMsgFilter") {
+	if strings.Contains(msg, "chatMsgFilter") ||
+		strings.Contains(msg, "websocket") {
 		return
 	}
 
