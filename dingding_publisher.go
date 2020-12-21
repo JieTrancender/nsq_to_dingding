@@ -55,6 +55,7 @@ type DingDingPublisher struct {
 	tokenMu      sync.Mutex
 	schema       string
 	filter       *MsgFilterConfig
+	mutex        sync.RWMutex
 }
 
 // NewDingDingPublisher create dingding publisher
@@ -141,12 +142,17 @@ func (publisher *DingDingPublisher) sendDingDingMsg(logData LogDataInfo, accessT
 		return
 	}
 
+	publisher.mutex.RLock()
+	// defer publisher.mutex.RUnlock()
+
 	req, err := http.NewRequest("POST", fmt.Sprintf("%s://%s?access_token=%s", publisher.filter.Protocol,
 		publisher.filter.URL, publisher.filter.HTTPAccessTokens), bytes.NewReader(reqBodyJSON))
 	if err != nil {
+		publisher.mutex.RUnlock()
 		fmt.Printf("sendDingDingMsg fail:%v %s", err, string(reqBodyJSON))
 		return
 	}
+	publisher.mutex.RUnlock()
 
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := publisher.client.Do(req)
