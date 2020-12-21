@@ -22,7 +22,7 @@ type NSQConsumer struct {
 // NewNSQConsumer create NSQConsumer
 func NewNSQConsumer(opts *Options, topic string, cfg *nsq.Config, config *NsqToDingDingConfig) (*NSQConsumer, error) {
 	log.Println("NewNSQConsumer topic", topic)
-	publisher, err := NewDingDingPublisher(config.Protocol, config.URL, config.HTTPAccessTokens)
+	publisher, err := NewDingDingPublisher(config.Filter)
 	if err != nil {
 		return nil, err
 	}
@@ -56,8 +56,8 @@ func NewNSQConsumer(opts *Options, topic string, cfg *nsq.Config, config *NsqToD
 	return nsqConsumer, nil
 }
 
-func (nsqConsumer *NSQConsumer) updateConfig(config *NsqToDingDingConfig) {
-	nsqConsumer.publisher.updateConfig(config)
+func (nsqConsumer *NSQConsumer) updateConfig(filter *MsgFilterConfig) {
+	nsqConsumer.publisher.updateConfig(filter)
 }
 
 // HandleMessage implement of NSQ HandleMessage interface

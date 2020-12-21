@@ -15,21 +15,21 @@ import (
 
 // MsgFilterConfig msg fileter config structure
 type MsgFilterConfig struct {
-	FilterKeys []string `json:"filterKeys"`
-	IgnoreKeys []string `json:"ignoreKeys"`
-	NotAtKeys  []string `json:"notAtKeys"`
+	URL              string   `json:"url"`
+	Protocol         string   `json:"protocol"`
+	HTTPAccessTokens []string `json:"http-access-tokens"`
+	FilterKeys       []string `json:"filterKeys"`
+	IgnoreKeys       []string `json:"ignoreKeys"`
+	NotAtKeys        []string `json:"notAtKeys"`
 }
 
 // NsqToDingDingConfig config structure
 type NsqToDingDingConfig struct {
-	LookupdHTTPAddresses []string        `json:"lookupd-http-addresses"`
-	NsqdTCPAddresses     []string        `json:"nsqd-tcp-addresses"`
-	HTTPAccessTokens     []string        `json:"http-access-tokens"`
-	Topics               []string        `json:"topics"`
-	TopicRefreshInterval time.Duration   `json:"topic-refresh-interval"`
-	URL                  string          `json:"url"`
-	Protocol             string          `json:"protocol"`
-	Filter               MsgFilterConfig `json:"filter"`
+	LookupdHTTPAddresses []string         `json:"lookupd-http-addresses"`
+	NsqdTCPAddresses     []string         `json:"nsqd-tcp-addresses"`
+	Topics               []string         `json:"topics"`
+	TopicRefreshInterval time.Duration    `json:"topic-refresh-interval"`
+	Filter               *MsgFilterConfig `json:"filter"`
 }
 
 // TopicDiscoverer struct of topic discoverer
@@ -102,15 +102,19 @@ func (discoverer *TopicDiscoverer) updateTopics(topics []string) {
 
 func (discoverer *TopicDiscoverer) updateConifg() {
 	for _, consumer := range discoverer.topics {
-		consumer.updateConfig(discoverer.config)
+		consumer.updateConfig(discoverer.config.Filter)
 	}
 }
 
 func newNsqToDingDingConfig() *NsqToDingDingConfig {
 	config := &NsqToDingDingConfig{
-		Protocol:             "http",
-		URL:                  "oapi.dingtalk.com/robot/send",
+		// Protocol:             "http",
+		// URL:                  "oapi.dingtalk.com/robot/send",
 		TopicRefreshInterval: 30,
+		Filter: &MsgFilterConfig{
+			Protocol: "http",
+			URL:      "oapi.dingtalk.com/robot/send",
+		},
 	}
 
 	return config

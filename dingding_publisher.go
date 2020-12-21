@@ -53,20 +53,17 @@ type DingDingPublisher struct {
 	accessTokens []string
 	tokenIndex   int
 	tokenMu      sync.Mutex
-	url          string
-	protocol     string
 	schema       string
+	filter       *MsgFilterConfig
 }
 
 // NewDingDingPublisher create dingding publisher
-func NewDingDingPublisher(protocol, url string, accessTokens []string) (*DingDingPublisher, error) {
+func NewDingDingPublisher(filter *MsgFilterConfig) (*DingDingPublisher, error) {
 	var err error
 	publisher := &DingDingPublisher{
-		protocol:     protocol,
-		url:          url,
-		accessTokens: accessTokens,
-		schema:       "markdown",
-		tokenIndex:   0,
+		filter:     filter,
+		schema:     "markdown",
+		tokenIndex: 0,
 	}
 
 	publisher.client = &http.Client{}
@@ -144,8 +141,8 @@ func (publisher *DingDingPublisher) sendDingDingMsg(logData LogDataInfo, accessT
 		return
 	}
 
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s://%s?access_token=%s", publisher.protocol, publisher.url,
-		accessToken), bytes.NewReader(reqBodyJSON))
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s://%s?access_token=%s", publisher.filter.Protocol,
+		publisher.filter.URL, publisher.filter.HTTPAccessTokens), bytes.NewReader(reqBodyJSON))
 	if err != nil {
 		fmt.Printf("sendDingDingMsg fail:%v %s", err, string(reqBodyJSON))
 		return
@@ -171,15 +168,25 @@ func (publisher *DingDingPublisher) sendDingDingMsg(logData LogDataInfo, accessT
 
 // todo: 使用etcd读取配置
 func (publisher *DingDingPublisher) filterMessage(gamePlatform, nodeName, fileName, msg string) {
-	// 报错调用栈、报警日志、死循环检测
-	if !strings.Contains(msg, "stack traceback") &&
-		!strings.Contains(msg, "alarm") &&
-		!strings.Contains(msg, "maybe in an endless loop") {
-		return
+	isIgnore := true
+
+	// only special keys need alarm
+	for _, value := range publisher.filter.FilterKeys {
+		if strings.Contains(msg, value) {
+			isIgnore = false
+			break
+		}
 	}
 
-	// 特定关键字不报错，例如聊天后台请求
-	if strings.Contains(msg, "chatMsgFilter") {
+	// some keys need ignore
+	for _, value := range publisher.filter.IgnoreKeys {
+		if strings.Contains(msg, value) {
+			isIgnore = true
+			break
+		}
+	}
+
+	if isIgnore {
 		return
 	}
 
@@ -190,8 +197,11 @@ func (publisher *DingDingPublisher) filterMessage(gamePlatform, nodeName, fileNa
 
 	isAtAll := true
 	// not at all people for some key
-	if strings.Contains(msg, "websocket") {
-		isAtAll = false
+	for _, value := range publisher.filter.NotAtKeys {
+		if strings.Contains(msg, value) {
+			isAtAll = false
+			break
+		}
 	}
 
 	logData := LogDataInfo{
@@ -220,10 +230,7 @@ func (publisher *DingDingPublisher) handleMessage(m *nsq.Message) error {
 	return err
 }
 
-func (publisher *DingDingPublisher) updateConfig(config *NsqToDingDingConfig) {
-	publisher.protocol = config.Protocol
-	publisher.url = config.URL
-	publisher.accessTokens = config.HTTPAccessTokens
-	fmt.Printf("nsqConsumer updateConfig: %s %s %v %v\n", config.Protocol, config.URL, config.HTTPAccessTokens,
-		config.Filter)
+func (publisher *DingDingPublisher) updateConfig(filter *MsgFilterConfig) {
+	publisher.filter = filter
+	fmt.Printf("nsqConsumer updateConfig: %v\n", filter)
 }
