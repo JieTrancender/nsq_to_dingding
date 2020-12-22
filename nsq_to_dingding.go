@@ -125,6 +125,7 @@ func main() {
 	etcdEndpoints := fs.Lookup("etcd-endpoint").Value.(flag.Getter).Get().([]string)
 	etcdUsername := fs.Lookup("etcd-username").Value.(flag.Getter).Get().(string)
 	etcdPassword := fs.Lookup("etcd-password").Value.(flag.Getter).Get().(string)
+	etcdPath := fs.Lookup("etcd-path").Value.(flag.Getter).Get().(string)
 
 	if len(etcdEndpoints) == 0 {
 		log.Fatal("error: not any etcd endpoint")
@@ -132,7 +133,7 @@ func main() {
 
 	// fmt.Printf("full url: %s://%s?accessToken=%s\n", httpProtocol, httpURL, httpAccessToken)
 	discoverer, err := newTopicDiscoverer(opts, cfg, hupChan, termChan,
-		etcdEndpoints, etcdUsername, etcdPassword)
+		etcdEndpoints, etcdUsername, etcdPassword, etcdPath)
 	if err != nil {
 		log.Fatal("newTopicDiscoverer fail ", err)
 	}
