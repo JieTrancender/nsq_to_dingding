@@ -79,7 +79,6 @@ func newTopicDiscoverer(opts *Options, cfg *nsq.Config, hupChan chan os.Signal, 
 }
 
 func (discoverer *TopicDiscoverer) updateTopics(topics []string) {
-	fmt.Println(discoverer.topics)
 	for _, topic := range topics {
 		if _, ok := discoverer.topics[topic]; ok {
 			continue
@@ -108,11 +107,9 @@ func (discoverer *TopicDiscoverer) updateConifg() {
 
 func newNsqToDingDingConfig() *NsqToDingDingConfig {
 	config := &NsqToDingDingConfig{
-		// Protocol:             "http",
-		// URL:                  "oapi.dingtalk.com/robot/send",
 		TopicRefreshInterval: 30,
 		Filter: &MsgFilterConfig{
-			Protocol: "http",
+			Protocol: "https",
 			URL:      "oapi.dingtalk.com/robot/send",
 		},
 	}

@@ -49,13 +49,11 @@ type DingDingReqBodyInfo struct {
 
 // DingDingPublisher dingding publisher structure
 type DingDingPublisher struct {
-	client       *http.Client
-	accessTokens []string
-	tokenIndex   int
-	tokenMu      sync.Mutex
-	schema       string
-	filter       *MsgFilterConfig
-	mutex        sync.RWMutex
+	client     *http.Client
+	tokenIndex int
+	schema     string
+	filter     *MsgFilterConfig
+	mutex      sync.RWMutex
 }
 
 // NewDingDingPublisher create dingding publisher
@@ -109,20 +107,19 @@ func generateTextBody(logData LogDataInfo) ([]byte, error) {
 // generateAccessToken get access token by loop
 func (publisher *DingDingPublisher) generateAccessToken() string {
 	var accessToken string
-	if len(publisher.accessTokens) == 0 {
+
+	publisher.mutex.RLock()
+	defer publisher.mutex.RUnlock()
+
+	fmt.Printf("accessTokens:%v, tokenIndex:%d\n", publisher.filter.HTTPAccessTokens, publisher.tokenIndex)
+
+	if len(publisher.filter.HTTPAccessTokens) == 0 {
 		return accessToken
 	}
 
-	publisher.tokenMu.Lock()
-	defer publisher.tokenMu.Unlock()
-
-	if len(publisher.accessTokens) == 0 {
-		return accessToken
-	}
-
-	accessToken = publisher.accessTokens[publisher.tokenIndex]
+	accessToken = publisher.filter.HTTPAccessTokens[publisher.tokenIndex]
 	publisher.tokenIndex = publisher.tokenIndex + 1
-	if publisher.tokenIndex == len(publisher.accessTokens) {
+	if publisher.tokenIndex == len(publisher.filter.HTTPAccessTokens) {
 		publisher.tokenIndex = 0
 	}
 
@@ -145,8 +142,10 @@ func (publisher *DingDingPublisher) sendDingDingMsg(logData LogDataInfo, accessT
 	publisher.mutex.RLock()
 	// defer publisher.mutex.RUnlock()
 
+	fmt.Printf("%s://%s?access_token=%s\n", publisher.filter.Protocol,
+		publisher.filter.URL, accessToken)
 	req, err := http.NewRequest("POST", fmt.Sprintf("%s://%s?access_token=%s", publisher.filter.Protocol,
-		publisher.filter.URL, publisher.filter.HTTPAccessTokens), bytes.NewReader(reqBodyJSON))
+		publisher.filter.URL, accessToken), bytes.NewReader(reqBodyJSON))
 	if err != nil {
 		publisher.mutex.RUnlock()
 		fmt.Printf("sendDingDingMsg fail:%v %s", err, string(reqBodyJSON))
@@ -176,6 +175,9 @@ func (publisher *DingDingPublisher) sendDingDingMsg(logData LogDataInfo, accessT
 func (publisher *DingDingPublisher) filterMessage(gamePlatform, nodeName, fileName, msg string) {
 	isIgnore := true
 
+	publisher.mutex.RLock()
+	defer publisher.mutex.RUnlock()
+
 	// only special keys need alarm
 	for _, value := range publisher.filter.FilterKeys {
 		if strings.Contains(msg, value) {
@@ -197,6 +199,7 @@ func (publisher *DingDingPublisher) filterMessage(gamePlatform, nodeName, fileNa
 	}
 
 	accessToken := publisher.generateAccessToken()
+	fmt.Printf("accessToken:%s\n", accessToken)
 	if accessToken == "" {
 		return
 	}
@@ -237,6 +240,10 @@ func (publisher *DingDingPublisher) handleMessage(m *nsq.Message) error {
 }
 
 func (publisher *DingDingPublisher) updateConfig(filter *MsgFilterConfig) {
+	publisher.mutex.Lock()
+	defer publisher.mutex.Unlock()
+
 	publisher.filter = filter
-	fmt.Printf("nsqConsumer updateConfig: %v\n", filter)
+	// maybe there are fewer tokens
+	publisher.tokenIndex = 0
 }
