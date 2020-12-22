@@ -51,7 +51,7 @@ type TopicDiscoverer struct {
 }
 
 func newTopicDiscoverer(opts *Options, cfg *nsq.Config, hupChan chan os.Signal, termChan chan os.Signal,
-	etcdEndpoints []string, etcdUsername, etcdPassword string) (*TopicDiscoverer, error) {
+	etcdEndpoints []string, etcdUsername, etcdPassword, etcdPath string) (*TopicDiscoverer, error) {
 	discoverer := &TopicDiscoverer{
 		opts:          opts,
 		topics:        make(map[string]*NSQConsumer),
@@ -62,7 +62,7 @@ func newTopicDiscoverer(opts *Options, cfg *nsq.Config, hupChan chan os.Signal, 
 		etcdEndpoints: etcdEndpoints,
 		etcdUsername:  etcdUsername,
 		etcdPassword:  etcdPassword,
-		etcdPath:      "/config/nsq_to_dingding/default",
+		etcdPath:      etcdPath,
 	}
 
 	etcdCli, err := clientv3.New(clientv3.Config{
