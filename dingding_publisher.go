@@ -22,6 +22,12 @@ type LogDataInfo struct {
 	IsAtAll      bool   `json:"isAtAll"`
 }
 
+// AlarmDataInfo alarm data structure
+type AlarmDataInfo struct {
+	Msg     string `json:"message"`
+	IsAtAll bool   `json:"isAtAll"`
+}
+
 // DingDingReqMarkdown dingding req markdown schema structure
 type DingDingReqMarkdown struct {
 	Title string `json:"title"`
@@ -109,6 +115,21 @@ func generateTextBody(logData LogDataInfo) ([]byte, error) {
 	return json.Marshal(reqBody)
 }
 
+func generateAlarmTextBody(alarmData AlarmDataInfo) ([]byte, error) {
+	reqBody := DingDingReqBodyInfo{
+		MsgType: "text",
+		Text: DingDingReqText{
+			Content: alarmData.Msg,
+		},
+		At: DingDingReqAtInfo{
+			AtMobiles: []string{},
+			IsAtAll:   alarmData.IsAtAll,
+		},
+	}
+
+	return json.Marshal(reqBody)
+}
+
 // generateAccessToken get access token by loop
 func (publisher *DingDingPublisher) generateAccessToken() string {
 	var accessToken string
@@ -129,19 +150,7 @@ func (publisher *DingDingPublisher) generateAccessToken() string {
 	return accessToken
 }
 
-func (publisher *DingDingPublisher) sendDingDingMsg(logData LogDataInfo, accessToken string) {
-	var reqBodyJSON []byte
-	var err error
-	if publisher.schema == "text" {
-		reqBodyJSON, err = generateTextBody(logData)
-	} else {
-		reqBodyJSON, err = generateMarkDownBody(logData)
-	}
-	if err != nil {
-		fmt.Printf("generateMarkDownBody fail:%s", err)
-		return
-	}
-
+func (publisher *DingDingPublisher) sendDingDingMsg(reqBodyJSON []byte, accessToken string) {
 	publisher.mutex.RLock()
 	req, err := http.NewRequest("POST", fmt.Sprintf("%s://%s?access_token=%s", publisher.filter.Protocol,
 		publisher.filter.URL, accessToken), bytes.NewReader(reqBodyJSON))
@@ -218,14 +227,96 @@ func (publisher *DingDingPublisher) filterMessage(machineName, gamePlatform, nod
 		Msg:          msg,
 		IsAtAll:      isAtAll,
 	}
-	go publisher.sendDingDingMsg(logData, accessToken)
+
+	var reqBodyJSON []byte
+	var err error
+	if publisher.schema == "text" {
+		reqBodyJSON, err = generateTextBody(logData)
+	} else {
+		reqBodyJSON, err = generateMarkDownBody(logData)
+	}
+	if err != nil {
+		fmt.Printf("filterMessage file:%v", err)
+		return
+	}
+
+	go publisher.sendDingDingMsg(reqBodyJSON, accessToken)
+}
+
+func (publisher *DingDingPublisher) alarmMessage(msg string) {
+	fmt.Printf("alarmMessage:%s\n", msg)
+	isIgnore := true
+
+	publisher.mutex.RLock()
+	defer publisher.mutex.RUnlock()
+
+	// only special keys need alarm
+	for _, value := range publisher.filter.FilterKeys {
+		if strings.Contains(msg, value) {
+			isIgnore = false
+			break
+		}
+	}
+
+	// some keys need ignore
+	for _, value := range publisher.filter.IgnoreKeys {
+		if strings.Contains(msg, value) {
+			isIgnore = false
+			break
+		}
+	}
+
+	if isIgnore {
+		return
+	}
+
+	accessToken := publisher.generateAccessToken()
+	fmt.Printf("accessToken:%s\n", accessToken)
+	if accessToken == "" {
+		return
+	}
+
+	isAtAll := true
+	// not at all people for some key
+	for _, value := range publisher.filter.NotAtKeys {
+		if strings.Contains(msg, value) {
+			isAtAll = false
+			break
+		}
+	}
+
+	alarmData := AlarmDataInfo{
+		Msg:     msg,
+		IsAtAll: isAtAll,
+	}
+
+	reqBodyJson, err := generateAlarmTextBody(alarmData)
+	if err != nil {
+		fmt.Printf("generateAlarmTextBody fail: %v %v", err, alarmData)
+		return
+	}
+
+	go publisher.sendDingDingMsg(reqBodyJson, accessToken)
 }
 
 func (publisher *DingDingPublisher) handleMessage(m *nsq.Message) error {
 	data := make(map[string]interface{})
 	err := json.Unmarshal(m.Body, &data)
 	if err != nil {
-		fmt.Println("handleMessage unmarshal fail:", err)
+		// alarm text message if unmarshal fail
+		message := string(m.Body)
+		publisher.alarmMessage(message)
+		return nil
+	}
+
+	if data["message"] == nil || data["log"] == nil {
+		message := ""
+		if data["message"] != nil {
+			message = data["message"].(string)
+		} else {
+			message = string(m.Body)
+		}
+		publisher.alarmMessage(message)
 		return err
 	}
 
