@@ -68,6 +68,8 @@ func newTopicDiscoverer(opts *Options, cfg *nsq.Config, hupChan chan os.Signal, 
 	etcdCli, err := clientv3.New(clientv3.Config{
 		Endpoints:   etcdEndpoints,
 		DialTimeout: 5 * time.Second,
+		Username:    etcdUsername,
+		Password:    etcdPassword,
 	})
 	if err != nil {
 		return nil, err
