@@ -51,6 +51,7 @@ func flagSet() *flag.FlagSet {
 	fs.Duration("topic-refresh", time.Minute, "how frequently the topic list should be refreshed")
 	fs.Duration("lookupd-poll-interval", 6*time.Second, "lookupd poll interval")
 
+	fs.Duration("dial-timeout", 6*time.Second, "dial nsqd timeout")
 	fs.Duration("sync-interval", 30*time.Second, "sync file to dingding duration")
 	fs.Int("publisher-num", 10, "number of concurrent publishers")
 
@@ -116,6 +117,7 @@ func main() {
 	}
 	cfg.UserAgent = fmt.Sprintf("nsq_to_dingding/%s go-nsq/%s", VERSION, nsq.VERSION)
 	cfg.MaxInFlight = opts.MaxInFlight
+	cfg.DialTimeout = fs.Lookup("dial-timeout").Value.(flag.Getter).Get().(time.Duration)
 
 	hupChan := make(chan os.Signal, 1)
 	termChan := make(chan os.Signal, 1)
