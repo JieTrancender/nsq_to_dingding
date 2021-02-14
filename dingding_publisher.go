@@ -14,11 +14,18 @@ import (
 
 // LogDataInfo log data structure
 type LogDataInfo struct {
+	MachineName  string `json:"machineName"`
 	GamePlatform string `json:"gamePlatform"`
 	NodeName     string `json:"nodeName"`
 	FileName     string `json:"fileName"`
 	Msg          string `json:"message"`
 	IsAtAll      bool   `json:"isAtAll"`
+}
+
+// AlarmDataInfo alarm data structure
+type AlarmDataInfo struct {
+	Msg     string `json:"message"`
+	IsAtAll bool   `json:"isAtAll"`
 }
 
 // DingDingReqMarkdown dingding req markdown schema structure
@@ -72,12 +79,16 @@ func NewDingDingPublisher(filter *MsgFilterConfig) (*DingDingPublisher, error) {
 
 // generateMarkDownBody 生成markdown格式报警信息
 func generateMarkDownBody(logData LogDataInfo) ([]byte, error) {
+	machineStr := ""
+	if logData.MachineName != "" {
+		machineStr = fmt.Sprintf("机器名:**%s**\n\n", logData.MachineName)
+	}
 	reqBody := DingDingReqBodyInfo{
 		MsgType: "markdown",
 		Markdown: DingDingReqMarkdown{
 			Title: "报错信息",
-			Text: fmt.Sprintf("\n\n## %s渠道%s节点报错收集\n\n文件名:**%s**\n\n```lua\n%s\n```",
-				logData.GamePlatform, logData.NodeName, logData.FileName, logData.Msg),
+			Text: fmt.Sprintf("\n\n## %s渠道%s节点报错收集\n\n%s文件名:**%s**\n\n```lua\n%s\n```",
+				logData.GamePlatform, logData.NodeName, machineStr, logData.FileName, logData.Msg),
 		},
 		At: DingDingReqAtInfo{
 			AtMobiles: []string{},
@@ -104,14 +115,27 @@ func generateTextBody(logData LogDataInfo) ([]byte, error) {
 	return json.Marshal(reqBody)
 }
 
+func generateAlarmTextBody(alarmData AlarmDataInfo) ([]byte, error) {
+	reqBody := DingDingReqBodyInfo{
+		MsgType: "text",
+		Text: DingDingReqText{
+			Content: alarmData.Msg,
+		},
+		At: DingDingReqAtInfo{
+			AtMobiles: []string{},
+			IsAtAll:   alarmData.IsAtAll,
+		},
+	}
+
+	return json.Marshal(reqBody)
+}
+
 // generateAccessToken get access token by loop
 func (publisher *DingDingPublisher) generateAccessToken() string {
 	var accessToken string
 
 	publisher.mutex.RLock()
 	defer publisher.mutex.RUnlock()
-
-	fmt.Printf("accessTokens:%v, tokenIndex:%d\n", publisher.filter.HTTPAccessTokens, publisher.tokenIndex)
 
 	if len(publisher.filter.HTTPAccessTokens) == 0 {
 		return accessToken
@@ -126,24 +150,8 @@ func (publisher *DingDingPublisher) generateAccessToken() string {
 	return accessToken
 }
 
-func (publisher *DingDingPublisher) sendDingDingMsg(logData LogDataInfo, accessToken string) {
-	var reqBodyJSON []byte
-	var err error
-	if publisher.schema == "text" {
-		reqBodyJSON, err = generateTextBody(logData)
-	} else {
-		reqBodyJSON, err = generateMarkDownBody(logData)
-	}
-	if err != nil {
-		fmt.Printf("generateMarkDownBody fail:%s", err)
-		return
-	}
-
+func (publisher *DingDingPublisher) sendDingDingMsg(reqBodyJSON []byte, accessToken string) {
 	publisher.mutex.RLock()
-	// defer publisher.mutex.RUnlock()
-
-	fmt.Printf("%s://%s?access_token=%s\n", publisher.filter.Protocol,
-		publisher.filter.URL, accessToken)
 	req, err := http.NewRequest("POST", fmt.Sprintf("%s://%s?access_token=%s", publisher.filter.Protocol,
 		publisher.filter.URL, accessToken), bytes.NewReader(reqBodyJSON))
 	if err != nil {
@@ -167,12 +175,10 @@ func (publisher *DingDingPublisher) sendDingDingMsg(logData LogDataInfo, accessT
 		fmt.Printf("sendDingDingMsg fail:%s\n", string(body))
 		return
 	}
-
-	fmt.Println("sendDingDingMsg success", string(body))
 }
 
 // todo: 使用etcd读取配置
-func (publisher *DingDingPublisher) filterMessage(gamePlatform, nodeName, fileName, msg string) {
+func (publisher *DingDingPublisher) filterMessage(machineName, gamePlatform, nodeName, fileName, msg string) {
 	isIgnore := true
 
 	publisher.mutex.RLock()
@@ -199,7 +205,7 @@ func (publisher *DingDingPublisher) filterMessage(gamePlatform, nodeName, fileNa
 	}
 
 	accessToken := publisher.generateAccessToken()
-	fmt.Printf("accessToken:%s\n", accessToken)
+	fmt.Printf("accessToken:%s %s\n", accessToken, machineName)
 	if accessToken == "" {
 		return
 	}
@@ -214,27 +220,114 @@ func (publisher *DingDingPublisher) filterMessage(gamePlatform, nodeName, fileNa
 	}
 
 	logData := LogDataInfo{
+		MachineName:  machineName,
 		GamePlatform: gamePlatform,
 		NodeName:     nodeName,
 		FileName:     fileName,
 		Msg:          msg,
 		IsAtAll:      isAtAll,
 	}
-	go publisher.sendDingDingMsg(logData, accessToken)
+
+	var reqBodyJSON []byte
+	var err error
+	if publisher.schema == "text" {
+		reqBodyJSON, err = generateTextBody(logData)
+	} else {
+		reqBodyJSON, err = generateMarkDownBody(logData)
+	}
+	if err != nil {
+		fmt.Printf("filterMessage file:%v", err)
+		return
+	}
+
+	go publisher.sendDingDingMsg(reqBodyJSON, accessToken)
+}
+
+func (publisher *DingDingPublisher) alarmMessage(msg string) {
+	fmt.Printf("alarmMessage:%s\n", msg)
+	isIgnore := true
+
+	publisher.mutex.RLock()
+	defer publisher.mutex.RUnlock()
+
+	// only special keys need alarm
+	for _, value := range publisher.filter.FilterKeys {
+		if strings.Contains(msg, value) {
+			isIgnore = false
+			break
+		}
+	}
+
+	// some keys need ignore
+	for _, value := range publisher.filter.IgnoreKeys {
+		if strings.Contains(msg, value) {
+			isIgnore = false
+			break
+		}
+	}
+
+	if isIgnore {
+		return
+	}
+
+	accessToken := publisher.generateAccessToken()
+	fmt.Printf("accessToken:%s\n", accessToken)
+	if accessToken == "" {
+		return
+	}
+
+	isAtAll := true
+	// not at all people for some key
+	for _, value := range publisher.filter.NotAtKeys {
+		if strings.Contains(msg, value) {
+			isAtAll = false
+			break
+		}
+	}
+
+	alarmData := AlarmDataInfo{
+		Msg:     msg,
+		IsAtAll: isAtAll,
+	}
+
+	reqBodyJson, err := generateAlarmTextBody(alarmData)
+	if err != nil {
+		fmt.Printf("generateAlarmTextBody fail: %v %v", err, alarmData)
+		return
+	}
+
+	go publisher.sendDingDingMsg(reqBodyJson, accessToken)
 }
 
 func (publisher *DingDingPublisher) handleMessage(m *nsq.Message) error {
 	data := make(map[string]interface{})
 	err := json.Unmarshal(m.Body, &data)
 	if err != nil {
-		fmt.Println("handleMessage unmarshal fail:", err)
+		// alarm text message if unmarshal fail
+		message := string(m.Body)
+		publisher.alarmMessage(message)
+		return nil
+	}
+
+	if data["message"] == nil || data["log"] == nil {
+		message := ""
+		if data["message"] != nil {
+			message = data["message"].(string)
+		} else {
+			message = string(m.Body)
+		}
+		publisher.alarmMessage(message)
 		return err
 	}
 
+	machineName := ""
+	if data["machineName"] != nil {
+		machineName = data["machineName"].(string)
+	}
 	logData := data["log"].(map[string]interface{})
 	fileData := logData["file"].(map[string]interface{})
-	publisher.filterMessage(data["gamePlatform"].(string), data["nodeName"].(string), fileData["path"].(string),
-		data["message"].(string))
+	publisher.filterMessage(machineName, data["gamePlatform"].(string), data["nodeName"].(string),
+		fileData["path"].(string), data["message"].(string))
 
 	return err
 }
