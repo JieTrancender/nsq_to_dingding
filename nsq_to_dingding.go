@@ -74,7 +74,7 @@ func flagSet() *flag.FlagSet {
 	return fs
 }
 
-func main() {
+func mainTmp() {
 	fs := flagSet()
 	err := fs.Parse(os.Args[1:])
 	if err != nil {

@@ -1,9 +1,10 @@
 package main
 
 import (
-	"github.com/nsqio/go-nsq"
 	"log"
 	"os"
+
+	"github.com/nsqio/go-nsq"
 )
 
 // NSQConsumer nsq consumer structure

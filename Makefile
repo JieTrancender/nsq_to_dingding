@@ -1,7 +1,7 @@
 BUILDDIR = build
 BUILDFLAGS =
 
-APPS = nsq_to_dingding
+APPS = nsq_to_consumer
 all: $(APPS)
 
 $(BUILDDIR)/%:
