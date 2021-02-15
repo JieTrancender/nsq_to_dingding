@@ -7,5 +7,6 @@ require (
 	github.com/google/uuid v1.2.0 // indirect
 	github.com/mreiferson/go-options v1.0.0
 	github.com/nsqio/go-nsq v1.0.8
+	github.com/pkg/errors v0.8.1
 	github.com/spf13/cobra v1.1.3
 )
