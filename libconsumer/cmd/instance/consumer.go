@@ -1,12 +1,15 @@
 package instance
 
 import (
+	"flag"
 	"fmt"
 	"os"
 
 	errw "github.com/pkg/errors"
 
 	"github.com/JieTrancender/nsq_to_consumer/libconsumer/consumer"
+	"github.com/JieTrancender/nsq_to_consumer/libconsumer/logger"
+	"github.com/JieTrancender/nsq_to_consumer/libconsumer/logger/configure"
 	"github.com/JieTrancender/nsq_to_consumer/libconsumer/version"
 )
 
@@ -29,6 +32,47 @@ func NewConsumer(name, v string) (*Consumer, error) {
 	}
 
 	return &Consumer{Consumer: c}, nil
+}
+
+// InitWithSettings does initialization of things common to all actions (read confs, flags)
+func (c *Consumer) InitWithSettings(settings Settings) error {
+	err := c.handleFlags()
+	if err != nil {
+		return err
+	}
+
+	// if err != plugin.Initialze(); err != nil {
+	// 	return err
+	// }
+
+	if err := c.configure(settings); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// handleFlags parses the command line flags. It invokes the HandleFlags callback if implemented by the Consumer.
+func (c *Consumer) handleFlags() error {
+	flag.Parse()
+	// return cfgfile.HandleFlags()
+
+	return nil
+}
+
+// configure reads the configuration file from disk, parses the common options defined in ConsumerConfig,
+// initializes logging, and set GOMAXPROCS if defined in the config.
+// Lastly it invokes the Config method implemented by the Consumer.
+func (c *Consumer) configure(settings Settings) error {
+	var err error
+	if err = configure.Logging(c.Info.Consumer); err != nil {
+		return fmt.Errorf("error initializing logging: %v", err)
+	}
+
+	// log paths values to help with troubleshooting
+	logger.L().Info("configure success")
+
+	return nil
 }
 
 // Run initializes and runs a Consumer imlementation. name is the name of Consumer (eg nsq_to_consumer).
@@ -82,6 +126,16 @@ func (c *Consumer) createConEntity(creator consumer.Creator) (consumer.ConEntity
 }
 
 func (c *Consumer) launch(settings Settings, creator consumer.Creator) error {
+	defer logger.L().Sync()
+	defer logger.L().Info("%s stopped.", c.Info.Consumer)
+	// defer logger.Sync()
+	// defer logger.Info("%s stopped.", c.Info.Consumer)
+
+	err := c.InitWithSettings(settings)
+	if err != nil {
+		return err
+	}
+
 	consumer, err := c.createConEntity(creator)
 	if err != nil {
 		return err
