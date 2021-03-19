@@ -110,7 +110,7 @@ func generateMarkDownBody(logData LogDataInfo) ([]byte, error) {
 func generateTextBody(logData LogDataInfo) ([]byte, error) {
 	machineStr := ""
 	if logData.MachineName != "" {
-		machineStr = fmt.Sprintf("%s", logData.MachineName)
+		machineStr = logData.MachineName
 	}
 	reqBody := DingDingReqBodyInfo{
 		MsgType: "text",
