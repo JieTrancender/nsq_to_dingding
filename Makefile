@@ -20,4 +20,5 @@ test:
 .PHONY: $(APPS)
 
 lint:
+	golangci-lint cache clean
 	golangci-lint run --tests=false ./...
