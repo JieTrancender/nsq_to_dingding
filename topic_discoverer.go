@@ -21,6 +21,8 @@ type MsgFilterConfig struct {
 	FilterKeys       []string `json:"filterKeys"`
 	IgnoreKeys       []string `json:"ignoreKeys"`
 	NotAtKeys        []string `json:"notAtKeys"`
+	AtMobiles        []string `json:"atMobiles"`
+	Schema           string   `json:"schema"`
 }
 
 // NsqToDingDingConfig config structure

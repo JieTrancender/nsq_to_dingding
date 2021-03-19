@@ -14,18 +14,20 @@ import (
 
 // LogDataInfo log data structure
 type LogDataInfo struct {
-	MachineName  string `json:"machineName"`
-	GamePlatform string `json:"gamePlatform"`
-	NodeName     string `json:"nodeName"`
-	FileName     string `json:"fileName"`
-	Msg          string `json:"message"`
-	IsAtAll      bool   `json:"isAtAll"`
+	MachineName  string   `json:"machineName"`
+	GamePlatform string   `json:"gamePlatform"`
+	NodeName     string   `json:"nodeName"`
+	FileName     string   `json:"fileName"`
+	Msg          string   `json:"message"`
+	IsAtAll      bool     `json:"isAtAll"`
+	AtMobiles    []string `json:"atMobiles"`
 }
 
 // AlarmDataInfo alarm data structure
 type AlarmDataInfo struct {
-	Msg     string `json:"message"`
-	IsAtAll bool   `json:"isAtAll"`
+	Msg       string   `json:"message"`
+	IsAtAll   bool     `json:"isAtAll"`
+	AtMobiles []string `json:"atMobeles"`
 }
 
 // DingDingReqMarkdown dingding req markdown schema structure
@@ -65,10 +67,15 @@ type DingDingPublisher struct {
 
 // NewDingDingPublisher create dingding publisher
 func NewDingDingPublisher(filter *MsgFilterConfig) (*DingDingPublisher, error) {
+	schema := "text"
+	if filter.Schema != "" {
+		schema = filter.Schema
+	}
+
 	var err error
 	publisher := &DingDingPublisher{
 		filter:     filter,
-		schema:     "markdown",
+		schema:     schema,
 		tokenIndex: 0,
 	}
 
@@ -86,13 +93,12 @@ func generateMarkDownBody(logData LogDataInfo) ([]byte, error) {
 	reqBody := DingDingReqBodyInfo{
 		MsgType: "markdown",
 		Markdown: DingDingReqMarkdown{
-			Title: fmt.Sprintf("\n\n## %s渠道%s节点报错收集\n\n%s文件名:**%s**\n\n```lua\n%s\n```",
-				logData.GamePlatform, logData.NodeName, machineStr, logData.FileName, logData.Msg),
-			Text: fmt.Sprintf("\n\n## %s渠道%s节点报错收集\n\n%s文件名:**%s**\n\n```lua\n%s\n```",
+			Title: fmt.Sprintf("%s\n", logData.Msg),
+			Text: fmt.Sprintf("\n\n## %s渠道%s节点报错收集\n\n%s文件名:**%s**\n```lua\n%s\n```",
 				logData.GamePlatform, logData.NodeName, machineStr, logData.FileName, logData.Msg),
 		},
 		At: DingDingReqAtInfo{
-			AtMobiles: []string{},
+			AtMobiles: logData.AtMobiles,
 			IsAtAll:   logData.IsAtAll,
 		},
 	}
@@ -102,13 +108,19 @@ func generateMarkDownBody(logData LogDataInfo) ([]byte, error) {
 
 // generateTextBody generate text schema alarm msg
 func generateTextBody(logData LogDataInfo) ([]byte, error) {
+	machineStr := ""
+	if logData.MachineName != "" {
+		machineStr = logData.MachineName
+	}
 	reqBody := DingDingReqBodyInfo{
 		MsgType: "text",
 		Text: DingDingReqText{
-			Content: fmt.Sprintf("%s渠道%s节点报错收集", logData.GamePlatform, logData.NodeName),
+			// Content: fmt.Sprintf("%s\n%s渠道%s节点报错收集\n%s\n%s\n", logData.Msg, logData.GamePlatform, logData.NodeName, machineStr, logData.FileName),
+			Content: fmt.Sprintf("%s\n主题: %s(%s) 节点报错收集\n机器: %s\n文件: %s", logData.Msg, logData.GamePlatform,
+				logData.NodeName, machineStr, logData.FileName),
 		},
 		At: DingDingReqAtInfo{
-			AtMobiles: []string{},
+			AtMobiles: logData.AtMobiles,
 			IsAtAll:   logData.IsAtAll,
 		},
 	}
@@ -123,7 +135,7 @@ func generateAlarmTextBody(alarmData AlarmDataInfo) ([]byte, error) {
 			Content: alarmData.Msg,
 		},
 		At: DingDingReqAtInfo{
-			AtMobiles: []string{},
+			AtMobiles: alarmData.AtMobiles,
 			IsAtAll:   alarmData.IsAtAll,
 		},
 	}
@@ -220,6 +232,11 @@ func (publisher *DingDingPublisher) filterMessage(machineName, gamePlatform, nod
 		}
 	}
 
+	// don't at all when at mobiles exist
+	if len(publisher.filter.AtMobiles) > 0 {
+		isAtAll = false
+	}
+
 	logData := LogDataInfo{
 		MachineName:  machineName,
 		GamePlatform: gamePlatform,
@@ -227,6 +244,7 @@ func (publisher *DingDingPublisher) filterMessage(machineName, gamePlatform, nod
 		FileName:     fileName,
 		Msg:          msg,
 		IsAtAll:      isAtAll,
+		AtMobiles:    publisher.filter.AtMobiles,
 	}
 
 	var reqBodyJSON []byte
@@ -286,9 +304,14 @@ func (publisher *DingDingPublisher) alarmMessage(msg string) {
 		}
 	}
 
+	if len(publisher.filter.AtMobiles) > 0 {
+		isAtAll = false
+	}
+
 	alarmData := AlarmDataInfo{
-		Msg:     msg,
-		IsAtAll: isAtAll,
+		Msg:       msg,
+		IsAtAll:   isAtAll,
+		AtMobiles: publisher.filter.AtMobiles,
 	}
 
 	reqBodyJson, err := generateAlarmTextBody(alarmData)
@@ -340,4 +363,8 @@ func (publisher *DingDingPublisher) updateConfig(filter *MsgFilterConfig) {
 	publisher.filter = filter
 	// maybe there are fewer tokens
 	publisher.tokenIndex = 0
+
+	if filter.Schema != "" {
+		publisher.schema = filter.Schema
+	}
 }
