@@ -286,7 +286,7 @@ func (publisher *DingDingPublisher) alarmMessage(msg string) {
 		}
 	}
 
-	if isIgnore {
+	if isIgnore && len(publisher.filter.FilterKeys) > 0 {
 		return
 	}
 
