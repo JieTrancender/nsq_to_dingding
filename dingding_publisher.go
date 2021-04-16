@@ -213,7 +213,8 @@ func (publisher *DingDingPublisher) filterMessage(machineName, gamePlatform, nod
 		}
 	}
 
-	if isIgnore {
+	// alarm all messages when filter keys are not existed
+	if isIgnore && len(publisher.filter.FilterKeys) > 0 {
 		return
 	}
 
@@ -285,7 +286,7 @@ func (publisher *DingDingPublisher) alarmMessage(msg string) {
 		}
 	}
 
-	if isIgnore {
+	if isIgnore && len(publisher.filter.FilterKeys) > 0 {
 		return
 	}
 
