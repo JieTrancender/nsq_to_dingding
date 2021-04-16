@@ -219,7 +219,6 @@ func (publisher *DingDingPublisher) filterMessage(machineName, gamePlatform, nod
 	}
 
 	accessToken := publisher.generateAccessToken()
-	fmt.Printf("accessToken:%s %s\n", accessToken, machineName)
 	if accessToken == "" {
 		return
 	}
@@ -264,7 +263,6 @@ func (publisher *DingDingPublisher) filterMessage(machineName, gamePlatform, nod
 }
 
 func (publisher *DingDingPublisher) alarmMessage(msg string) {
-	fmt.Printf("alarmMessage:%s\n", msg)
 	isIgnore := true
 
 	publisher.mutex.RLock()
@@ -281,7 +279,7 @@ func (publisher *DingDingPublisher) alarmMessage(msg string) {
 	// some keys need ignore
 	for _, value := range publisher.filter.IgnoreKeys {
 		if strings.Contains(msg, value) {
-			isIgnore = false
+			isIgnore = true
 			break
 		}
 	}
@@ -291,7 +289,6 @@ func (publisher *DingDingPublisher) alarmMessage(msg string) {
 	}
 
 	accessToken := publisher.generateAccessToken()
-	fmt.Printf("accessToken:%s\n", accessToken)
 	if accessToken == "" {
 		return
 	}
