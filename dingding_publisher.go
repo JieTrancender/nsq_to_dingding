@@ -169,7 +169,7 @@ func (publisher *DingDingPublisher) generateAccessToken() string {
 
 func hmacSha256(stringToSign, secret string) string {
 	h := hmac.New(sha256.New, []byte(secret))
-	h.Write([]byte(stringToSign))
+	_, _ = h.Write([]byte(stringToSign))
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
 
