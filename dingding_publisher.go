@@ -2,12 +2,16 @@ package main
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/nsqio/go-nsq"
 )
@@ -163,10 +167,21 @@ func (publisher *DingDingPublisher) generateAccessToken() string {
 	return accessToken
 }
 
+func hmacSha256(stringToSign, secret string) string {
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write([]byte(stringToSign))
+	return base64.StdEncoding.EncodeToString(h.Sum(nil))
+}
+
 func (publisher *DingDingPublisher) sendDingDingMsg(reqBodyJSON []byte, accessToken string) {
 	publisher.mutex.RLock()
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s://%s?access_token=%s", publisher.filter.Protocol,
-		publisher.filter.URL, accessToken), bytes.NewReader(reqBodyJSON))
+	secretKey := publisher.filter.Secret
+	timestamp := time.Now().UnixNano() / 1e6
+	stringToSign := fmt.Sprintf("%d\n%s", timestamp, secretKey)
+	sign := hmacSha256(stringToSign, secretKey)
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s://%s?access_token=%s&timestamp=%d&sign=%s", publisher.filter.Protocol,
+		publisher.filter.URL, accessToken, timestamp, sign), bytes.NewReader(reqBodyJSON))
 	if err != nil {
 		publisher.mutex.RUnlock()
 		fmt.Printf("sendDingDingMsg fail:%v %s", err, string(reqBodyJSON))
@@ -182,7 +197,6 @@ func (publisher *DingDingPublisher) sendDingDingMsg(reqBodyJSON []byte, accessTo
 	}
 
 	defer resp.Body.Close()
-
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Printf("sendDingDingMsg fail:%s\n", string(body))
@@ -198,11 +212,16 @@ func (publisher *DingDingPublisher) filterMessage(machineName, gamePlatform, nod
 	defer publisher.mutex.RUnlock()
 
 	// only special keys need alarm
-	for _, value := range publisher.filter.FilterKeys {
-		if strings.Contains(msg, value) {
-			isIgnore = false
-			break
+	if len(publisher.filter.FilterKeys) > 0 {
+		for _, value := range publisher.filter.FilterKeys {
+			if strings.Contains(msg, value) {
+				isIgnore = false
+				break
+			}
 		}
+	} else {
+		// alarm all messages when filter keys are not existed
+		isIgnore = false
 	}
 
 	// some keys need ignore
@@ -213,8 +232,7 @@ func (publisher *DingDingPublisher) filterMessage(machineName, gamePlatform, nod
 		}
 	}
 
-	// alarm all messages when filter keys are not existed
-	if isIgnore && len(publisher.filter.FilterKeys) > 0 {
+	if isIgnore {
 		return
 	}
 
