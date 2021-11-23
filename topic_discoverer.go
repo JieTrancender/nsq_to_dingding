@@ -13,17 +13,21 @@ import (
 	"github.com/nsqio/go-nsq"
 )
 
+type TokenSecret struct {
+	Token  string `json:"token"`
+	Secret string `json:"secret"`
+}
+
 // MsgFilterConfig msg fileter config structure
 type MsgFilterConfig struct {
-	URL              string   `json:"url"`
-	Protocol         string   `json:"protocol"`
-	HTTPAccessTokens []string `json:"http-access-tokens"`
-	FilterKeys       []string `json:"filterKeys"`
-	IgnoreKeys       []string `json:"ignoreKeys"`
-	NotAtKeys        []string `json:"notAtKeys"`
-	AtMobiles        []string `json:"atMobiles"`
-	Schema           string   `json:"schema"`
-	Secret           string   `json:"secret"`
+	URL          string        `json:"url"`
+	Protocol     string        `json:"protocol"`
+	FilterKeys   []string      `json:"filterKeys"`
+	IgnoreKeys   []string      `json:"ignoreKeys"`
+	NotAtKeys    []string      `json:"notAtKeys"`
+	AtMobiles    []string      `json:"atMobiles"`
+	Schema       string        `json:"schema"`
+	TokenSecrets []TokenSecret `json:"token-secrets"`
 }
 
 // NsqToDingDingConfig config structure
