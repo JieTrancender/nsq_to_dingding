@@ -148,23 +148,23 @@ func generateAlarmTextBody(alarmData AlarmDataInfo) ([]byte, error) {
 }
 
 // generateAccessToken get access token by loop
-func (publisher *DingDingPublisher) generateAccessToken() string {
-	var accessToken string
+func (publisher *DingDingPublisher) generateAccessToken() TokenSecret {
+	var tokenSecret TokenSecret
 
 	publisher.mutex.RLock()
 	defer publisher.mutex.RUnlock()
 
-	if len(publisher.filter.HTTPAccessTokens) == 0 {
-		return accessToken
+	if len(publisher.filter.TokenSecrets) == 0 {
+		return tokenSecret
 	}
 
-	accessToken = publisher.filter.HTTPAccessTokens[publisher.tokenIndex]
+	tokenSecret = publisher.filter.TokenSecrets[publisher.tokenIndex]
 	publisher.tokenIndex = publisher.tokenIndex + 1
-	if publisher.tokenIndex == len(publisher.filter.HTTPAccessTokens) {
+	if publisher.tokenIndex == len(publisher.filter.TokenSecrets) {
 		publisher.tokenIndex = 0
 	}
 
-	return accessToken
+	return tokenSecret
 }
 
 func hmacSha256(stringToSign, secret string) string {
@@ -173,15 +173,15 @@ func hmacSha256(stringToSign, secret string) string {
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
 
-func (publisher *DingDingPublisher) sendDingDingMsg(reqBodyJSON []byte, accessToken string) {
+func (publisher *DingDingPublisher) sendDingDingMsg(reqBodyJSON []byte, tokenSecret TokenSecret) {
 	publisher.mutex.RLock()
-	secretKey := publisher.filter.Secret
+	secretKey := tokenSecret.Secret
 	timestamp := time.Now().UnixNano() / 1e6
 	stringToSign := fmt.Sprintf("%d\n%s", timestamp, secretKey)
 	sign := hmacSha256(stringToSign, secretKey)
 
 	req, err := http.NewRequest("POST", fmt.Sprintf("%s://%s?access_token=%s&timestamp=%d&sign=%s", publisher.filter.Protocol,
-		publisher.filter.URL, accessToken, timestamp, sign), bytes.NewReader(reqBodyJSON))
+		publisher.filter.URL, tokenSecret.Token, timestamp, sign), bytes.NewReader(reqBodyJSON))
 	if err != nil {
 		publisher.mutex.RUnlock()
 		fmt.Printf("sendDingDingMsg fail:%v %s", err, string(reqBodyJSON))
@@ -236,8 +236,8 @@ func (publisher *DingDingPublisher) filterMessage(machineName, gamePlatform, nod
 		return
 	}
 
-	accessToken := publisher.generateAccessToken()
-	if accessToken == "" {
+	tokenSecret := publisher.generateAccessToken()
+	if tokenSecret.Token == "" {
 		return
 	}
 
@@ -277,7 +277,7 @@ func (publisher *DingDingPublisher) filterMessage(machineName, gamePlatform, nod
 		return
 	}
 
-	go publisher.sendDingDingMsg(reqBodyJSON, accessToken)
+	go publisher.sendDingDingMsg(reqBodyJSON, tokenSecret)
 }
 
 func (publisher *DingDingPublisher) alarmMessage(msg string) {
@@ -306,8 +306,8 @@ func (publisher *DingDingPublisher) alarmMessage(msg string) {
 		return
 	}
 
-	accessToken := publisher.generateAccessToken()
-	if accessToken == "" {
+	tokenSecret := publisher.generateAccessToken()
+	if tokenSecret.Token == "" {
 		return
 	}
 
@@ -336,7 +336,7 @@ func (publisher *DingDingPublisher) alarmMessage(msg string) {
 		return
 	}
 
-	go publisher.sendDingDingMsg(reqBodyJson, accessToken)
+	go publisher.sendDingDingMsg(reqBodyJson, tokenSecret)
 }
 
 func (publisher *DingDingPublisher) handleMessage(m *nsq.Message) error {
